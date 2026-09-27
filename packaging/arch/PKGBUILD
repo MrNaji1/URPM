@@ -13,7 +13,7 @@ optdepends=('polkit: remove and update packages from inside URPM'
             'pacman-contrib: see available pacman updates (checkupdates)'
             'flatpak: list Flatpak apps')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('676ecb88653f84388508b2c9d6f4b12a36c1e7819f187954b2358fb719e6de38')
 
 package() {
   cd "URPM-$pkgver"
