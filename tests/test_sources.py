@@ -13,7 +13,7 @@ from urpm.sources import ALL_SOURCES
 from urpm.sources.apk import parse_apk_db, parse_apk_simulation, parse_apk_version, parse_world
 from urpm.sources.appimage import AppImageSource, find_appimages, split_appimage_name
 from urpm.sources.base import (Action, Package, apply_updates, human_size, parse_fields,
-                               parse_size, split_name_version)
+                               parse_size, split_name_version, version_key)
 from urpm.sources.brew import parse_brew_info
 from urpm.sources.cargo import parse_crates2
 from urpm.sources.dpkg import (format_description, parse_dpkg_list, parse_simulated_removal,
@@ -76,6 +76,36 @@ class HelperTests(unittest.TestCase):
         # Flatpak can publish a new build with the same version number.
         self.assertEqual(apply_updates(pkgs, {"c": "3.0"}, same_version_ok=True), 1)
         self.assertEqual(pkgs[2].update, "new build")
+
+    def test_version_key_is_natural(self):
+        versions = ["10.0", "9.0", "1.10.2", "1.9", "1:2.43.0", "2.0-rc1", "2.0", "v3"]
+        self.assertEqual(sorted(versions, key=version_key),
+                         ["1.9", "1.10.2", "1:2.43.0", "2.0", "2.0-rc1", "9.0", "10.0", "v3"])
+        self.assertEqual(version_key(""), ())
+
+    def test_batched_updates(self):
+        from urpm.sources.dpkg import DpkgSource
+        from urpm.sources.flatpak import FlatpakSource
+        pkgs = [Package("a", "1", "apt", update="2"), Package("b", "1", "apt", update="2")]
+        with mock.patch("urpm.sources.dpkg.which", return_value="/usr/bin/apt-get"):
+            (apt,) = DpkgSource().update_actions(pkgs)
+            single = DpkgSource().update_action(pkgs[0])
+        self.assertTrue(apt.root)
+        self.assertEqual(apt.argv[-2:], ["a", "b"])
+        self.assertEqual(apt.display(), "sudo apt install --only-upgrade a b")
+        self.assertEqual(single.argv[-1], "a")
+        self.assertIsNone(DpkgSource().update_action(Package("c", "1", "apt")))  # no update
+        # Flatpak needs one command per installation.
+        fp = [Package("A", "1", "flatpak", ident="org.a/x86_64/stable", update="2",
+                      extra={"installation": "system"}),
+              Package("B", "1", "flatpak", ident="org.b/x86_64/stable", update="2",
+                      extra={"installation": "user"}),
+              Package("C", "1", "flatpak", ident="org.c/x86_64/stable", update="2",
+                      extra={"installation": "system"})]
+        actions = FlatpakSource().update_actions(fp)
+        self.assertEqual([a.display() for a in actions],
+                         ["flatpak update --system org.a/x86_64/stable org.c/x86_64/stable",
+                          "flatpak update --user org.b/x86_64/stable"])
 
     def test_parse_fields_continuation(self):
         fields = parse_fields("Package: foo\nDescription: short\n long line\n .\n more\n")

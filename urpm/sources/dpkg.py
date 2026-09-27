@@ -127,12 +127,13 @@ class DpkgSource(Source):
             return None
         return parse_simulated_removal(run("apt-get", "-s", "remove", pkg.name))
 
-    def update_action(self, pkg: Package) -> Action | None:
-        if not pkg.update or not which("apt-get"):
-            return None
-        return Action(["apt-get", "install", "--only-upgrade", "-y", *KEEP_CONFIGS, pkg.name],
-                      root=True,
-                      env=NONINTERACTIVE, pretty=f"sudo apt install --only-upgrade {pkg.name}")
+    def update_actions(self, pkgs: list[Package]) -> list[Action]:
+        if not which("apt-get"):
+            return []
+        names = [p.name for p in pkgs]
+        return [Action(["apt-get", "install", "--only-upgrade", "-y", *KEEP_CONFIGS, *names],
+                       root=True, env=NONINTERACTIVE,
+                       pretty=f"sudo apt install --only-upgrade {' '.join(names)}")]
 
     def check_updates(self, packages: list[Package]) -> int:
         if not which("apt"):

@@ -50,8 +50,8 @@ class BrewSource(Source):
     def remove_action(self, pkg: Package) -> Action:
         return Action(["brew", "uninstall", pkg.name])
 
-    def update_action(self, pkg: Package) -> Action | None:
-        return Action(["brew", "upgrade", pkg.name]) if pkg.update else None
+    def update_actions(self, pkgs: list[Package]) -> list[Action]:
+        return [Action(["brew", "upgrade", *(p.name for p in pkgs)])]
 
     def check_updates(self, packages: list[Package]) -> int:
         # `brew info` already reports "outdated", so this is filled in while listing.

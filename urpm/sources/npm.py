@@ -96,11 +96,9 @@ class NpmSource(Source):
     def remove_action(self, pkg: Package) -> Action:
         return Action(["npm", "uninstall", "-g", pkg.name], root=not can_write(pkg.section))
 
-    def update_action(self, pkg: Package) -> Action | None:
-        if not pkg.update:
-            return None
-        return Action(["npm", "install", "-g", f"{pkg.name}@latest"],
-                      root=not can_write(pkg.section))
+    def update_actions(self, pkgs: list[Package]) -> list[Action]:
+        root = not can_write(pkgs[0].section) if pkgs else False
+        return [Action(["npm", "install", "-g", *(f"{p.name}@latest" for p in pkgs)], root=root)]
 
     def check_updates(self, packages: list[Package]) -> int:
         # npm outdated exits with 1 when something is outdated.

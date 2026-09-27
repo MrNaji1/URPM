@@ -100,11 +100,10 @@ class ApkSource(Source):
     def simulate_remove(self, pkg: Package) -> list[str] | None:
         return parse_apk_simulation(run("apk", "del", "-s", pkg.name))
 
-    def update_action(self, pkg: Package) -> Action | None:
-        if not pkg.update:
-            return None
-        return Action(["apk", "add", "-u", pkg.name], root=True,
-                      pretty=f"sudo apk add -u {pkg.name}")
+    def update_actions(self, pkgs: list[Package]) -> list[Action]:
+        names = [p.name for p in pkgs]
+        return [Action(["apk", "add", "-u", *names], root=True,
+                       pretty=f"sudo apk add -u {' '.join(names)}")]
 
     def check_updates(self, packages: list[Package]) -> int:
         return apply_updates(packages, parse_apk_version(run("apk", "version", "-l", "<")))

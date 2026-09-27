@@ -97,11 +97,10 @@ class EopkgSource(Source):
         return Action(["eopkg", "remove", "-y", pkg.name], root=True,
                       pretty=f"sudo eopkg remove {pkg.name}")
 
-    def update_action(self, pkg: Package) -> Action | None:
-        if not pkg.update:
-            return None
-        return Action(["eopkg", "upgrade", "-y", pkg.name], root=True,
-                      pretty=f"sudo eopkg upgrade {pkg.name}")
+    def update_actions(self, pkgs: list[Package]) -> list[Action]:
+        names = [p.name for p in pkgs]
+        return [Action(["eopkg", "upgrade", "-y", *names], root=True,
+                       pretty=f"sudo eopkg upgrade {' '.join(names)}")]
 
     def check_updates(self, packages: list[Package]) -> int:
         return apply_updates(packages, parse_list_upgrades(run("eopkg", "list-upgrades")))

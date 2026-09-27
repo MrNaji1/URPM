@@ -147,12 +147,14 @@ class FlatpakSource(Source):
                        installation_flag(pkg), pkg.ident],
                       pretty=f"flatpak uninstall {installation_flag(pkg)} {pkg.ident}")
 
-    def update_action(self, pkg: Package) -> Action | None:
-        if not pkg.update:
-            return None
-        return Action(["flatpak", "update", "-y", "--noninteractive",
-                       installation_flag(pkg), pkg.ident],
-                      pretty=f"flatpak update {installation_flag(pkg)} {pkg.ident}")
+    def update_actions(self, pkgs: list[Package]) -> list[Action]:
+        # One command per installation (system, user, custom ones).
+        by_flag: dict[str, list[str]] = {}
+        for pkg in pkgs:
+            by_flag.setdefault(installation_flag(pkg), []).append(pkg.ident)
+        return [Action(["flatpak", "update", "-y", "--noninteractive", flag, *refs],
+                       pretty=f"flatpak update {flag} {' '.join(refs)}")
+                for flag, refs in by_flag.items()]
 
     def check_updates(self, packages: list[Package]) -> int:
         updates = parse_updates(run("flatpak", "remote-ls", "--updates", "--columns=ref,version",

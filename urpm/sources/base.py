@@ -105,8 +105,13 @@ class Source:
         """Everything that would be removed along with pkg, or None if unknown."""
         return None
 
+    def update_actions(self, pkgs: list[Package]) -> list[Action]:
+        """Commands that update all of pkgs at once (usually one per source)."""
+        return []
+
     def update_action(self, pkg: Package) -> Action | None:
-        return None
+        actions = self.update_actions([pkg]) if pkg.update else []
+        return actions[0] if len(actions) == 1 else None
 
     def check_updates(self, packages: list[Package]) -> int:
         """Set ``pkg.update`` on outdated packages; return how many were found."""
@@ -265,6 +270,15 @@ def apply_updates(packages: list[Package], updates: dict[str, str], key=lambda p
         pkg.update = new if new != pkg.version else "new build"
         found += 1
     return found
+
+
+_VERSION_PART_RE = re.compile(r"(\d+)")
+
+
+def version_key(version: str) -> tuple:
+    """Natural ordering, so 1.10 sorts after 1.9 and 10.0 after 9.0."""
+    return tuple((0, int(part)) if part.isdigit() else (1, part.lower())
+                 for part in _VERSION_PART_RE.split(version) if part)
 
 
 def human_size(num: int) -> str:

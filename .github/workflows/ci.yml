@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y python3-gi gir1.2-gtk-4.0 xvfb dbus-x11
-      - run: xvfb-run -a dbus-run-session -- /usr/bin/python3 -m unittest discover -s tests -v
+      - run: URPM_UI_TESTS=1 xvfb-run -a dbus-run-session -- /usr/bin/python3 -m unittest discover -s tests -v
 
   package:
     name: Build .deb and check install script

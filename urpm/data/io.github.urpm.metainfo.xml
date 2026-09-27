@@ -25,6 +25,9 @@
   <url type="bugtracker">https://github.com/MrNaji1/URPM/issues</url>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="1.1.0" date="2026-09-27">
+      <description><p>Update all at once, faster search, natural version sorting, compact layouts for small screens, double-click to open.</p></description>
+    </release>
     <release version="1.0.0" date="2026-09-27"/>
   </releases>
 </component>

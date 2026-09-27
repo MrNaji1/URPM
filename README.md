@@ -42,13 +42,15 @@ can show you the whole picture.
 | 🔍 **Instant search** | Just start typing. Searches names, IDs and descriptions. |
 | 💖 **Just mine** | Hides packages that were only pulled in as dependencies. |
 | ✨ **Update checker** | Finds updates across all your package managers in the background. |
-| 🚀 **Open apps** | Launch Flatpaks, Snaps, AppImages and desktop apps from their page. |
+| 🔄 **Update all** | One click (and one password prompt per package manager) updates everything in the Updates view. |
+| 🚀 **Open apps** | Launch Flatpaks, Snaps, AppImages and desktop apps. Double-click a row or press Enter. |
 | 🗑️ **Safe removal** | Previews everything that would be removed *before* you confirm, then asks for your password through polkit. |
 | 📂 **File lists** | See which files a package put on your system. |
 | 📊 **Stats** | Package count, disk usage, how many you installed, and pending updates. |
 | 📤 **Export** | Save the current view as CSV, JSON or plain text. |
 | 🌙 **Light and dark** | Follows your system theme and remembers your choice. |
-| ⌨️ **Keyboard friendly** | `Ctrl+F` search, `Ctrl+R` reload, `Ctrl+U` updates, `Ctrl+E` export. |
+| 📐 **Fits small screens** | Columns tuck away on narrower windows; works down to ~730 px wide. |
+| ⌨️ **Keyboard friendly** | `Ctrl+F` search, `Ctrl+R` reload, `Ctrl+U` updates, `Ctrl+E` export, `Delete` to remove. |
 
 <div align="center">
 <img src="docs/screenshots/updates-dark.png" alt="The Updates view in dark mode" width="860">
@@ -283,10 +285,13 @@ python3 -m urpm
 
 - **Pick a view** in the sidebar: *Everything*, *Updates*, *Last 30 days*, or a single
   package manager.
-- **Search** by typing anywhere. `Esc` clears it.
+- **Search** by typing anywhere. `Esc` clears it. Package manager names work too, so
+  `flatpak discord` finds Discord's Flatpak.
+- **Double-click** a package (or press `Enter`) to open it.
 - **Click a package** to see its description, size, homepage, dependencies and files.
 - **🚀 Open** launches it (when it's an app).
-- **✨ Update** appears when a newer version is available.
+- **✨ Update** appears when a newer version is available. In the *Updates* view,
+  **Update all** updates everything at once.
 - **🗑️ Remove** first shows a preview of everything that would be removed. Nothing happens
   until you confirm and enter your password.
 - **Copy uninstall command** if you'd rather run it yourself in a terminal.
@@ -298,6 +303,8 @@ python3 -m urpm
 | just type | search |
 | `Esc` | clear search |
 | `Ctrl+F` | focus search |
+| `Enter` / double-click | open the app |
+| `Delete` | remove the selected package (asks first) |
 | `Ctrl+R` / `F5` | reload packages |
 | `Ctrl+U` | check for updates |
 | `Ctrl+E` | export list |
@@ -364,8 +371,12 @@ Then register it in `urpm/sources/__init__.py`. Keep text parsing in a standalon
 **Running tests:**
 
 ```bash
-python3 -m unittest discover -s tests -v    # UI tests run too if you have a display
+make test       # parser + export tests, no windows
+make test-ui    # also the UI tests, on a hidden display (needs xvfb)
 ```
+
+See [docs/TESTING.md](docs/TESTING.md) for the full list of tests and the manual release
+checklist.
 
 ## License
 

@@ -100,11 +100,12 @@ class PipSource(Source):
         return Action(self._pip("uninstall", "-y", pkg.name),
                       pretty=f"python3 -m pip uninstall {pkg.name}")
 
-    def update_action(self, pkg: Package) -> Action | None:
-        if not pkg.update or not importlib.util.find_spec("pip"):
-            return None
-        return Action(self._pip("install", "--user", "--upgrade", pkg.name),
-                      pretty=f"python3 -m pip install --user --upgrade {pkg.name}")
+    def update_actions(self, pkgs: list[Package]) -> list[Action]:
+        if not importlib.util.find_spec("pip"):
+            return []
+        names = [p.name for p in pkgs]
+        return [Action(self._pip("install", "--user", "--upgrade", *names),
+                       pretty=f"python3 -m pip install --user --upgrade {' '.join(names)}")]
 
     def check_updates(self, packages: list[Package]) -> int:
         if not importlib.util.find_spec("pip"):

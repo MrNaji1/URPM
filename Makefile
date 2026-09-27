@@ -15,7 +15,7 @@ APPDIR  := $(DESTDIR)$(PREFIX)/share/applications
 ICONDIR := $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps
 METADIR := $(DESTDIR)$(PREFIX)/share/metainfo
 
-.PHONY: all install uninstall test deb run clean
+.PHONY: all install uninstall test test-ui deb run clean
 
 all:
 	@echo "URPM $(VERSION): try 'make run', 'make test', 'sudo make install' or 'make deb'"
@@ -25,6 +25,13 @@ run:
 
 test:
 	python3 -m unittest discover -s tests -v
+
+# The UI tests open real windows, so run them on an invisible X display (xvfb-run)
+# inside their own D-Bus session. Set XVFB_RUN=/path/to/xvfb-run if it isn't on $$PATH.
+XVFB_RUN ?= xvfb-run
+test-ui:
+	URPM_UI_TESTS=1 WAYLAND_DISPLAY= GDK_BACKEND=x11 $(XVFB_RUN) -a -s "-screen 0 1600x1000x24" \
+		dbus-run-session -- python3 -m unittest discover -s tests -v
 
 install:
 	install -d $(LIBDIR) $(BINDIR) $(APPDIR) $(ICONDIR) $(METADIR)

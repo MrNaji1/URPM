@@ -2,7 +2,7 @@
 # Arch Linux, Manjaro, EndeavourOS, CachyOS, Garuda…
 #   git clone https://github.com/MrNaji1/URPM && cd URPM/packaging/arch && makepkg -si
 pkgname=urpm
-pkgver=1.0.0
+pkgver=1.1.0
 pkgrel=1
 pkgdesc="Cute GTK app that shows every package installed on your Linux machine"
 arch=('any')

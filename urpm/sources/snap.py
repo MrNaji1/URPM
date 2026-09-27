@@ -80,11 +80,10 @@ class SnapSource(Source):
         return Action(["snap", "remove", pkg.name], root=True,
                       pretty=f"sudo snap remove {pkg.name}")
 
-    def update_action(self, pkg: Package) -> Action | None:
-        if not pkg.update:
-            return None
-        return Action(["snap", "refresh", pkg.name], root=True,
-                      pretty=f"sudo snap refresh {pkg.name}")
+    def update_actions(self, pkgs: list[Package]) -> list[Action]:
+        names = [p.name for p in pkgs]
+        return [Action(["snap", "refresh", *names], root=True,
+                       pretty=f"sudo snap refresh {' '.join(names)}")]
 
     def check_updates(self, packages: list[Package]) -> int:
         updates = parse_refresh_list(run("snap", "refresh", "--list", timeout=60))

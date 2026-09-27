@@ -109,15 +109,16 @@ class RpmSource(Source):
             return [pkg.name, *sorted({n for n in text.split() if n != pkg.name})]
         return None
 
-    def update_action(self, pkg: Package) -> Action | None:
+    def update_actions(self, pkgs: list[Package]) -> list[Action]:
         tool = frontend()
-        if not pkg.update or not tool:
-            return None
+        names = [p.name for p in pkgs]
+        if not tool:
+            return []
         if tool == "zypper":
-            return Action(["zypper", "--non-interactive", "update", pkg.name], root=True,
-                          pretty=f"sudo zypper update {pkg.name}")
-        return Action([tool, "upgrade", "-y", pkg.name], root=True,
-                      pretty=f"sudo {tool} upgrade {pkg.name}")
+            return [Action(["zypper", "--non-interactive", "update", *names], root=True,
+                           pretty=f"sudo zypper update {' '.join(names)}")]
+        return [Action([tool, "upgrade", "-y", *names], root=True,
+                       pretty=f"sudo {tool} upgrade {' '.join(names)}")]
 
     def check_updates(self, packages: list[Package]) -> int:
         tool = frontend()

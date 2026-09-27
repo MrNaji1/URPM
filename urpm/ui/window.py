@@ -16,11 +16,15 @@ from gi.repository import Gdk, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from urpm.sources import (KIND_LABELS, Package, Source, available_sources,  # noqa: E402
                           human_size)
+from urpm.sources.base import version_key  # noqa: E402
 from urpm.export import render_export  # noqa: E402
+from urpm.ui import theme  # noqa: E402
 from urpm.ui.dialogs import (CommandDialog, ConfirmRemoveDialog, can_run,  # noqa: E402
                              choose_export_file, launch)
 
 ALL, UPDATES, RECENT = "all", "updates", "recent"
+# Window widths where the layout gets more compact (see _apply_layout).
+WIDE, MEDIUM = 1280, 1120
 RECENT_DAYS = 30
 MAX_FILES_SHOWN = 3000
 
@@ -40,7 +44,15 @@ class PackageItem(GObject.Object):
         super().__init__()
         self.pkg = pkg
         self.source = source
-        self.haystack = f"{pkg.name} {pkg.ident} {pkg.summary}".lower()
+        # Searching "flatpak discord" or "apt python" should work too.
+        self.haystack = f"{pkg.name} {pkg.ident} {pkg.summary} {source.label}".lower()
+        # Sort keys are computed once; sorting 2,000+ rows compares them a lot.
+        self.name_key = pkg.name.casefold()
+        self.version_key = version_key(pkg.version)
+
+
+def layout_mode(width: int) -> int:
+    return 0 if width >= WIDE else 1 if width >= MEDIUM else 2
 
 
 def avatar_class(name: str) -> str:
@@ -79,7 +91,12 @@ def clear(box: Gtk.Widget) -> None:
 class UrpmWindow(Gtk.ApplicationWindow):
     def __init__(self, app: Gtk.Application):
         super().__init__(application=app, title="URPM", css_classes=["urpm"])
-        self.set_default_size(1360, 840)
+        saved = theme.load_prefs().get("window", {})
+        self.set_default_size(saved.get("width", 1360), saved.get("height", 840))
+        if saved.get("maximized"):
+            self.maximize()
+        self.connect("close-request", self._save_window_state)
+        self._layout_mode = 0
 
         self.sources: list[Source] = []
         self.items: list[PackageItem] = []
@@ -93,10 +110,16 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self._checking_updates = False
         self._generation = 0  # bumps on every reload, so stale update checks are ignored
         self._launcher = None
+        self.errors: dict[str, str] = {}
+        self._last_checked = None
+        self._recent_cutoff = time.time() - RECENT_DAYS * 86400
 
         self._build_header()
         self._build_body()
         self._install_actions()
+        # Start in the right layout so a small saved size isn't bumped up first.
+        self._layout_mode = layout_mode(saved.get("width", 1360))
+        self._apply_layout(self._layout_mode)
         self.reload()
 
     # ------------------------------------------------------------------ layout
@@ -111,7 +134,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
         brand.append(label("URPM", "brand"))
         header.pack_start(brand)
 
-        self.search = Gtk.SearchEntry(placeholder_text="Search your packages…", width_chars=40)
+        self.search = Gtk.SearchEntry(placeholder_text="Search your packages…", width_chars=30)
         self.search.connect("search-changed", self._on_search_changed)
         self.search.connect("stop-search", lambda e: e.set_text(""))
         self.search.set_key_capture_widget(self)
@@ -161,6 +184,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
     def _build_sidebar(self) -> Gtk.Widget:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
                       css_classes=["sidebar"], width_request=236)
+        self.sidebar = box
 
         self.source_list = Gtk.ListBox(css_classes=["source-list"],
                                        selection_mode=Gtk.SelectionMode.SINGLE)
@@ -187,6 +211,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
 
         self.stats = Gtk.Box(spacing=14, homogeneous=True, css_classes=["stats"])
         self.stat_labels = {}
+        self.stat_cards = []
         for key, emoji, caption, color in (
             ("count", "📦", "packages", "pink"),
             ("size", "💾", "on disk", "lilac"),
@@ -194,9 +219,11 @@ class UrpmWindow(Gtk.ApplicationWindow):
             ("updates", "✨", "updates available", "peach"),
         ):
             card = Gtk.Box(spacing=12, css_classes=["stat-card", color])
-            card.append(label(emoji, "stat-emoji"))
+            card.emoji = label(emoji, "stat-emoji")
+            card.append(card.emoji)
+            self.stat_cards.append(card)
             text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER)
-            value = label("…", "stat-value", xalign=0, ellipsize=Pango.EllipsizeMode.END)
+            value = label("…", "stat-value", xalign=0)  # numbers are never cut off
             cap = label(caption, "stat-caption", xalign=0, ellipsize=Pango.EllipsizeMode.END)
             text.append(value)
             text.append(cap)
@@ -204,6 +231,17 @@ class UrpmWindow(Gtk.ApplicationWindow):
             self.stats.append(card)
             self.stat_labels[key] = (value, cap)
         main.append(self.stats)
+
+        banner = Gtk.Box(spacing=12, css_classes=["banner"])
+        self.banner_label = label("", "banner-text", xalign=0, hexpand=True, wrap=True)
+        banner.append(self.banner_label)
+        self.update_all_button = Gtk.Button(label="✨ Update all", css_classes=["cute"],
+                                            valign=Gtk.Align.CENTER)
+        self.update_all_button.connect("clicked", self._on_update_all)
+        banner.append(self.update_all_button)
+        self.banner = Gtk.Revealer(child=banner,
+                                   transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN)
+        main.append(self.banner)
 
         self.content = Gtk.Stack(vexpand=True, transition_type=Gtk.StackTransitionType.CROSSFADE)
         self.content.add_named(self._build_loading(), "loading")
@@ -236,31 +274,41 @@ class UrpmWindow(Gtk.ApplicationWindow):
 
     def _build_table(self) -> Gtk.Widget:
         self.store = Gio.ListStore(item_type=PackageItem)
-        self.filter = Gtk.CustomFilter.new(self._filter_func)
-        self.filtered = Gtk.FilterListModel(model=self.store, filter=self.filter)
-        self.filtered.connect("items-changed", lambda *a: self._update_status())
-
         self.table = Gtk.ColumnView(css_classes=["package-table"], vexpand=True)
-        sorted_model = Gtk.SortListModel(model=self.filtered, sorter=self.table.get_sorter())
-        self.selection = Gtk.SingleSelection(model=sorted_model, autoselect=False,
+        # Sort first, then filter: the (slow, Python) sort only runs when you change the
+        # sort column, and each keystroke in the search box just filters sorted rows.
+        sorted_model = Gtk.SortListModel(model=self.store, sorter=self.table.get_sorter())
+        self.filter = Gtk.CustomFilter.new(self._filter_func)
+        self.filtered = Gtk.FilterListModel(model=sorted_model, filter=self.filter)
+        self.filtered.connect("items-changed", lambda *a: self._update_status())
+        self.selection = Gtk.SingleSelection(model=self.filtered, autoselect=False,
                                              can_unselect=True)
         self.selection.connect("notify::selected-item", self._on_selection_changed)
         self.table.set_model(self.selection)
 
         name_col = self._add_column("Package", self._setup_name, self._bind_name,
-                                    lambda p: p.name.casefold(), expand=True)
-        self._add_column("Version", self._setup_version, self._bind_version,
-                         lambda p: (p.update == "", p.version), width=150)
-        self._add_column("Source", self._setup_source, self._bind_source,
-                         lambda p: p.source, width=104)
-        self._add_column("Size", self._setup_size, self._bind_size,
-                         lambda p: p.size, width=140)
-        self._add_column("Updated", self._setup_date, self._bind_date,
-                         lambda p: p.installed or 0, width=116)
+                                    lambda i: i.name_key, expand=True)
+        self.col_version = self._add_column("Version", self._setup_version, self._bind_version,
+                                            lambda i: i.version_key, width=150)
+        self.col_source = self._add_column("Source", self._setup_source, self._bind_source,
+                                           lambda i: i.source.label, width=104)
+        self.col_size = self._add_column("Size", self._setup_size, self._bind_size,
+                                         lambda i: i.pkg.size, width=140)
+        self.col_updated = self._add_column("Updated", self._setup_date, self._bind_date,
+                                            lambda i: i.pkg.installed or 0, width=116)
         self.table.sort_by_column(name_col, Gtk.SortType.ASCENDING)
+        # Double-click / Enter opens the app; Delete asks to remove it.
+        self.table.connect("activate", self._on_row_activated)
+        keys = Gtk.ShortcutController()
+        keys.add_shortcut(Gtk.Shortcut.new(Gtk.ShortcutTrigger.parse_string("Delete"),
+                                           Gtk.CallbackAction.new(
+                                               lambda *_: self._on_remove(None) or True)))
+        self.table.add_controller(keys)
 
+        # AUTOMATIC (not NEVER) so the table doesn't force a huge minimum window width;
+        # the compact layouts below hide columns before a scrollbar is ever needed.
         scroller = Gtk.ScrolledWindow(child=self.table, vexpand=True, hexpand=True,
-                                      hscrollbar_policy=Gtk.PolicyType.NEVER)
+                                      hscrollbar_policy=Gtk.PolicyType.AUTOMATIC)
         card = Gtk.Box(css_classes=["table-card"], overflow=Gtk.Overflow.HIDDEN)
         card.append(scroller)
         return card
@@ -351,6 +399,40 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self.details.add_named(scroller, "package")
         return self.details
 
+    # ---------------------------------------------------------------- responsive layout
+
+    def do_size_allocate(self, width, height, baseline):
+        Gtk.ApplicationWindow.do_size_allocate(self, width, height, baseline)
+        mode = layout_mode(width)
+        if mode != self._layout_mode:
+            self._layout_mode = mode
+            # Changing widgets during allocation isn't allowed; do it right after.
+            GLib.idle_add(self._apply_layout, mode)
+
+    def _apply_layout(self, mode: int) -> bool:
+        """0 = everything, 1 = hide the Updated column, 2 = also Source + slimmer panels."""
+        self.col_updated.set_visible(mode == 0)
+        self.col_source.set_visible(mode < 2)
+        self.col_version.set_fixed_width(150 if mode == 0 else 130)
+        self.col_size.set_fixed_width(140 if mode == 0 else 124)
+        self.sidebar.set_size_request(236 if mode < 2 else 196, -1)
+        self.details.set_size_request(350 if mode == 0 else 300, -1)
+        for card in self.stat_cards:
+            card.emoji.set_visible(mode < 2)
+        self._sync_details_visibility()
+        return GLib.SOURCE_REMOVE
+
+    def _sync_details_visibility(self) -> None:
+        # On small windows the empty "Pick a package" panel isn't worth the space.
+        self.details.set_visible(self._layout_mode == 0 or self._selected() is not None)
+
+    def _save_window_state(self, *_):
+        width, height = self.get_default_size()
+        prefs = theme.load_prefs()
+        prefs["window"] = {"width": width, "height": height, "maximized": self.is_maximized()}
+        theme.save_prefs(prefs)
+        return False  # let the window close
+
     # ---------------------------------------------------------------- columns
 
     def _add_column(self, title, setup, bind, key, expand=False, width=None):
@@ -361,8 +443,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
                                       resizable=True)
         if width:
             column.set_fixed_width(width)
-        column.set_sorter(Gtk.CustomSorter.new(
-            lambda a, b, *_: ordering(key(a.pkg), key(b.pkg))))
+        column.set_sorter(Gtk.CustomSorter.new(lambda a, b, *_: ordering(key(a), key(b))))
         self.table.append_column(column)
         return column
 
@@ -371,7 +452,8 @@ class UrpmWindow(Gtk.ApplicationWindow):
         box = Gtk.Box(spacing=12)
         box.avatar = label("", "avatar")
         text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER)
-        box.title = label("", "pkg-name", xalign=0, ellipsize=Pango.EllipsizeMode.END)
+        box.title = label("", "pkg-name", xalign=0, ellipsize=Pango.EllipsizeMode.END,
+                          width_chars=12)
         box.summary = label("", "dim", "small", xalign=0, ellipsize=Pango.EllipsizeMode.END)
         text.append(box.title)
         text.append(box.summary)
@@ -401,7 +483,6 @@ class UrpmWindow(Gtk.ApplicationWindow):
     def _bind_version(box, item):
         pkg = item.pkg
         box.version.set_label(pkg.version)
-        box.set_tooltip_text(f"{pkg.version} → {pkg.update}" if pkg.update else pkg.version)
         box.update.set_label(f"↑ {pkg.update}")
         box.update.set_visible(bool(pkg.update))
 
@@ -419,7 +500,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
         box = Gtk.Box(spacing=10)
         box.bar = Gtk.ProgressBar(css_classes=["size-bar"], valign=Gtk.Align.CENTER,
                                   width_request=56)
-        box.text = label("", "small", xalign=1, hexpand=True)
+        box.text = label("", "small", xalign=1, hexpand=True, margin_end=8)
         box.append(box.bar)
         box.append(box.text)
         return box
@@ -467,6 +548,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
         selected_key = (selected.source.id, selected.pkg.ident) if selected else None
 
         self._generation += 1
+        self.errors = {src.id: err for src, _, err in results if err}
         self.sources = [src for src, pkgs, err in results if pkgs or err]
         self.items = [PackageItem(pkg, src) for src, pkgs, _ in results for pkg in pkgs]
         self.max_size = max((i.pkg.size for i in self.items), default=0) or 1
@@ -533,6 +615,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
         # Tell the table every row may have changed so update badges appear.
         n = self.store.get_n_items()
         self.store.items_changed(0, n, n)
+        self._last_checked = time.time()
         self._populate_sidebar()
         self._refresh_view()
         self._on_selection_changed()
@@ -547,12 +630,17 @@ class UrpmWindow(Gtk.ApplicationWindow):
     def _populate_sidebar(self) -> None:
         self._rebuilding_sidebar = True
         clear(self.source_list)
-        updates = sum(1 for i in self.items if i.pkg.update)
+        # Counts follow the "Just mine" switch, so they match what you'll see.
+        items = [i for i in self.items if i.pkg.explicit or not self.only_explicit]
+        updates = sum(1 for i in items if i.pkg.update)
         cutoff = time.time() - RECENT_DAYS * 86400
-        recent = sum(1 for i in self.items if (i.pkg.installed or 0) >= cutoff)
+        recent = sum(1 for i in items if (i.pkg.installed or 0) >= cutoff)
+        per_source: dict[str, int] = {}
+        for item in items:
+            per_source[item.source.id] = per_source.get(item.source.id, 0) + 1
 
         self._add_heading("LIBRARY")
-        rows = [self._add_view_row(ALL, "🌈", "Everything", len(self.items)),
+        rows = [self._add_view_row(ALL, "🌈", "Everything", len(items)),
                 self._add_view_row(UPDATES, "✨", "Updates", updates),
                 self._add_view_row(RECENT, "🕒", f"Last {RECENT_DAYS} days", recent)]
         for kind, heading in KIND_LABELS.items():
@@ -560,8 +648,9 @@ class UrpmWindow(Gtk.ApplicationWindow):
             if group:
                 self._add_heading(heading)
             for src in group:
-                count = sum(1 for i in self.items if i.source is src)
-                rows.append(self._add_view_row(src.id, src.emoji, src.label, count))
+                rows.append(self._add_view_row(src.id, src.emoji, src.label,
+                                               per_source.get(src.id, 0),
+                                               error=self.errors.get(src.id)))
 
         target = next((r for r in rows if r.view_id == self.view), rows[0])
         self.view = target.view_id
@@ -573,12 +662,16 @@ class UrpmWindow(Gtk.ApplicationWindow):
         row.set_child(label(text, "sidebar-heading", xalign=0))
         self.source_list.append(row)
 
-    def _add_view_row(self, view_id: str, emoji: str, name: str, count: int) -> Gtk.ListBoxRow:
+    def _add_view_row(self, view_id: str, emoji: str, name: str, count: int,
+                      error: str | None = None) -> Gtk.ListBoxRow:
         row = Gtk.ListBoxRow()
         row.view_id = view_id
         box = Gtk.Box(spacing=10)
         box.append(label(emoji, "source-emoji"))
         box.append(label(name, xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END))
+        if error:
+            row.set_tooltip_text(f"Couldn't read {name}: {error}")
+            box.append(label("⚠️", "source-error"))
         box.append(label(f"{count:,}", "count"))
         row.set_child(box)
         self.source_list.append(row)
@@ -591,7 +684,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
             if not item.pkg.update:
                 return False
         elif self.view == RECENT:
-            if (item.pkg.installed or 0) < time.time() - RECENT_DAYS * 86400:
+            if (item.pkg.installed or 0) < self._recent_cutoff:
                 return False
         elif self.view != ALL and item.source.id != self.view:
             return False
@@ -600,10 +693,27 @@ class UrpmWindow(Gtk.ApplicationWindow):
     def _filter_func(self, item: PackageItem, *_) -> bool:
         return self._in_view(item) and all(term in item.haystack for term in self.terms)
 
-    def _refresh_view(self) -> None:
-        self.filter.changed(Gtk.FilterChange.DIFFERENT)
+    def _refresh_view(self, change=Gtk.FilterChange.DIFFERENT) -> None:
+        self._recent_cutoff = time.time() - RECENT_DAYS * 86400
+        self.filter.changed(change)
         self._update_stats()
+        self._update_banner()
         self._update_status()
+
+    def _updatable(self) -> list[PackageItem]:
+        """Packages in the current view that have an update we can install."""
+        return [i for i in self.items if i.pkg.update and self._in_view(i)
+                and i.source.update_action(i.pkg) is not None]
+
+    def _update_banner(self) -> None:
+        ready = self._updatable() if self.view == UPDATES else []
+        show = bool(ready)
+        if show:
+            sources = sorted({i.source.label for i in ready})
+            self.banner_label.set_label(
+                f"✨ {len(ready)} update{'s' if len(ready) != 1 else ''} ready from "
+                f"{', '.join(sources)}")
+        self.banner.set_reveal_child(show)
 
     def _update_stats(self) -> None:
         scope = [i for i in self.items if self._in_view(i)]
@@ -620,7 +730,11 @@ class UrpmWindow(Gtk.ApplicationWindow):
                 self._show_empty("📭", "No packages found", "URPM didn't find any package manager")
             return
         shown, total = self.filtered.get_n_items(), len(self.items)
-        self.status.set_label(f"Showing {shown:,} of {total:,} packages")
+        status = f"Showing {shown:,} of {total:,} packages"
+        if self._last_checked:
+            status += " · updates checked at " + time.strftime("%H:%M", time.localtime(
+                self._last_checked))
+        self.status.set_label(status)
         if shown:
             self.content.set_visible_child_name("table")
             return
@@ -646,6 +760,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
 
     def _on_selection_changed(self, *_) -> None:
         item = self._selected()
+        self._sync_details_visibility()
         if item is None:
             self.details.set_visible_child_name("empty")
             return
@@ -785,8 +900,21 @@ class UrpmWindow(Gtk.ApplicationWindow):
             self.add_action(action)
 
     def _on_search_changed(self, entry) -> None:
+        old = " ".join(self.terms)
         self.terms = entry.get_text().lower().split()
-        self._refresh_view()
+        new = " ".join(self.terms)
+        # Typing more can only hide rows, deleting can only show rows. Telling GTK
+        # lets it re-check a fraction of the list instead of rebuilding everything.
+        same_words = len(self.terms) == len(old.split())
+        if not old or (new.startswith(old) and same_words):
+            change = Gtk.FilterChange.MORE_STRICT
+        elif not new or (old.startswith(new) and same_words):
+            change = Gtk.FilterChange.LESS_STRICT
+        else:
+            change = Gtk.FilterChange.DIFFERENT
+        # Stats describe the whole view and ignore the search box, so skip them here.
+        self.filter.changed(change)
+        self._update_status()
 
     def _on_view_selected(self, _list, row) -> None:
         if row is None or getattr(self, "_rebuilding_sidebar", False) \
@@ -797,6 +925,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
 
     def _on_explicit_toggled(self, switch, _pspec) -> None:
         self.only_explicit = switch.get_active()
+        self._populate_sidebar()
         self._refresh_view()
 
     def _on_toggle_theme(self, _button) -> None:
@@ -811,17 +940,14 @@ class UrpmWindow(Gtk.ApplicationWindow):
     def _on_open(self, _button) -> None:
         item = self._selected()
         if item and self._launcher:
-            try:
-                launch(self._launcher)
-                self.show_toast(f"🚀 Opening {item.pkg.name}…")
-            except OSError as exc:
-                self.show_toast(f"😿 Couldn't open {item.pkg.name}: {exc}")
+            self._launch_item(item, self._launcher)
 
     def _run_action(self, title: str, action, done_message: str) -> None:
-        problem = can_run(action)
+        actions = action if isinstance(action, list) else [action]
+        problem = next((p for p in map(can_run, actions) if p), None)
         if problem:
-            self._copy(action.display(), f"😿 {problem}. The command was copied, "
-                                         "so you can run it in a terminal.")
+            self._copy("\n".join(a.display() for a in actions),
+                       f"😿 {problem}. The command was copied, so you can run it in a terminal.")
             return
 
         def finished(ok: bool):
@@ -829,7 +955,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
                 self.show_toast(done_message)
                 self.reload()
 
-        CommandDialog(self, title, action, finished).present()
+        CommandDialog(self, title, actions, finished).present()
 
     def _on_remove(self, _button) -> None:
         item = self._selected()
@@ -849,6 +975,43 @@ class UrpmWindow(Gtk.ApplicationWindow):
         if action:
             self._run_action(f"Updating {item.pkg.name}…", action,
                              f"✨ Updated {item.pkg.name}")
+
+    def _on_update_all(self, _button=None) -> None:
+        by_source: dict[Source, list[Package]] = {}
+        for item in self._updatable():
+            by_source.setdefault(item.source, []).append(item.pkg)
+        actions = [a for src, pkgs in by_source.items() for a in src.update_actions(pkgs)]
+        if not actions:
+            self.show_toast("Nothing to update here")
+            return
+        count = sum(len(p) for p in by_source.values())
+        self._run_action(f"Updating {count} package{'s' if count != 1 else ''}…", actions,
+                         f"✨ Updated {count} package{'s' if count != 1 else ''}")
+
+    def _on_row_activated(self, _view, position) -> None:
+        item = self.selection.get_model().get_item(position)
+        if item is None:
+            return
+
+        def worker():
+            try:
+                argv = item.source.launch_argv(item.pkg)
+            except Exception:
+                argv = None
+            GLib.idle_add(self._launch_item, item, argv)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _launch_item(self, item: PackageItem, argv) -> bool:
+        if not argv:
+            self.show_toast(f"{item.pkg.name} isn't an app you can open")
+            return GLib.SOURCE_REMOVE
+        try:
+            launch(argv)
+            self.show_toast(f"🚀 Opening {item.pkg.name}…")
+        except OSError as exc:
+            self.show_toast(f"😿 Couldn't open {item.pkg.name}: {exc}")
+        return GLib.SOURCE_REMOVE
 
     def _on_export(self) -> None:
         model = self.selection.get_model()
@@ -870,6 +1033,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
 
     def _on_shortcuts(self) -> None:
         rows = (("Type anywhere", "Search"), ("Esc", "Clear search"), ("Ctrl+F", "Focus search"),
+                ("Enter / double-click", "Open the app"), ("Delete", "Remove package…"),
                 ("Ctrl+R / F5", "Reload packages"), ("Ctrl+U", "Check for updates"),
                 ("Ctrl+E", "Export list"), ("Ctrl+Q", "Quit"))
         dialog = Gtk.Window(transient_for=self, modal=True, title="Keyboard shortcuts",

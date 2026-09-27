@@ -123,9 +123,13 @@ class ConfirmRemoveDialog(_Dialog):
 
 
 class CommandDialog(_Dialog):
-    """Runs an Action and streams its output."""
+    """Runs one or more Actions in order and streams their output.
 
-    def __init__(self, parent, title: str, action: Action, on_finished=None):
+    Stops at the first failure, so a failed update never leads into the next one.
+    """
+
+    def __init__(self, parent, title: str, actions, on_finished=None):
+        actions = actions if isinstance(actions, list) else [actions]
         super().__init__(parent, title, width=640)
         self.set_default_size(640, 420)
         self._on_finished = on_finished
@@ -137,8 +141,9 @@ class CommandDialog(_Dialog):
         self.status = label(title, "placeholder-title", xalign=0, hexpand=True, wrap=True)
         head.append(self.status)
         self.body.append(head)
-        self.body.append(label(action.display(), "mono", "dim", xalign=0, wrap=True,
-                               selectable=True, wrap_mode=Pango.WrapMode.CHAR))
+        self.body.append(label("\n".join(a.display() for a in actions), "mono", "dim",
+                               xalign=0, wrap=True, selectable=True,
+                               wrap_mode=Pango.WrapMode.CHAR))
 
         self.buffer = Gtk.TextBuffer()
         view = Gtk.TextView(buffer=self.buffer, editable=False, monospace=True,
@@ -154,26 +159,35 @@ class CommandDialog(_Dialog):
         self.set_deletable(False)
         self.connect("close-request", lambda *_: not self._finished)
 
-        threading.Thread(target=self._run, args=(action,), daemon=True).start()
+        threading.Thread(target=self._run_all, args=(actions,), daemon=True).start()
 
     def _on_escape(self, *_):
         if self._finished:
             self.close()
         return True
 
-    def _run(self, action: Action) -> None:
+    def _run_all(self, actions: list[Action]) -> None:
+        code = 0
+        for action in actions:
+            if len(actions) > 1:
+                GLib.idle_add(self._append, f"$ {action.display()}\n")
+            code = self._run(action)
+            if code != 0:
+                break
+        GLib.idle_add(self._done, code)
+
+    def _run(self, action: Action) -> int:
         try:
             proc = subprocess.Popen(action.full_argv(), stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                     text=True, errors="replace", bufsize=1)
         except OSError as exc:
             GLib.idle_add(self._append, f"{exc}\n")
-            GLib.idle_add(self._done, -1)
-            return
+            return -1
         with proc.stdout:
             for line in proc.stdout:
                 GLib.idle_add(self._append, _ANSI_RE.sub("", line))
-        GLib.idle_add(self._done, proc.wait())
+        return proc.wait()
 
     def _append(self, text: str) -> bool:
         self.buffer.insert(self.buffer.get_end_iter(), text)

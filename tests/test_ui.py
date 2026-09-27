@@ -1,6 +1,9 @@
-"""Drives the real window with a fake package source. Skipped without GTK 4 or a display.
+"""Drives the real window with a fake package source.
 
-In CI it runs under a virtual display:  xvfb-run python3 -m unittest discover tests
+These open real GTK windows, so they only run when asked to, on a hidden display:
+
+    make test-ui          # uses xvfb-run, so nothing appears on your screen
+    URPM_UI_TESTS=1 xvfb-run -a dbus-run-session -- python3 -m unittest tests.test_ui
 """
 
 import os
@@ -27,10 +30,10 @@ class FakeSource(Source):
 
     def list_packages(self):
         now = time.time()
-        return [Package("alpha", "1.0", "fake", summary="first letter", size=5_000_000,
+        return [Package("alpha", "1.10", "fake", summary="first letter", size=5_000_000,
                         installed=now),
-                Package("beta", "2.0", "fake", summary="second", size=10, explicit=False),
-                Package("gamma", "3.0", "fake", summary="third", homepage="https://example.org")]
+                Package("beta", "1.9", "fake", summary="second", size=10, explicit=False),
+                Package("gamma", "10.0", "fake", summary="third", homepage="https://example.org")]
 
     def check_updates(self, packages):
         for pkg in packages:
@@ -47,8 +50,21 @@ class FakeSource(Source):
     def remove_action(self, pkg):
         return Action(["true", pkg.name])
 
-    def update_action(self, pkg):
-        return Action(["true", "update", pkg.name]) if pkg.update else None
+    def update_actions(self, pkgs):
+        return [Action(["true", "update", *(p.name for p in pkgs)])]
+
+    def launch_argv(self, pkg):
+        return ["true", pkg.name] if pkg.explicit else None
+
+
+class BrokenSource(Source):
+    id, label, emoji, kind = "broken", "Broken", "💥", DEV
+
+    def available(self):
+        return True
+
+    def list_packages(self):
+        raise RuntimeError("database is locked")
 
 
 def spin(until, timeout=10.0):
@@ -62,15 +78,17 @@ def spin(until, timeout=10.0):
         time.sleep(0.005)
 
 
-@unittest.skipUnless(HAVE_GTK and (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")),
-                     "needs GTK 4 and a display")
+@unittest.skipUnless(os.environ.get("URPM_UI_TESTS") == "1",
+                     "UI tests open windows; run `make test-ui` (hidden display) to include them")
+@unittest.skipUnless(HAVE_GTK, "needs GTK 4")
 class WindowTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from urpm.ui import app as appmod, theme
         cls.prefs = mock.patch.object(theme, "save_prefs")  # never touch the real config
         cls.prefs.start()
-        cls.patch = mock.patch("urpm.ui.window.available_sources", return_value=[FakeSource()])
+        cls.patch = mock.patch("urpm.ui.window.available_sources",
+                               return_value=[FakeSource(), BrokenSource()])
         cls.patch.start()
         cls.app = appmod.UrpmApp()
         cls.app.register(None)
@@ -122,7 +140,107 @@ class WindowTests(unittest.TestCase):
         while row:
             ids.append(getattr(row, "view_id", None))
             row = row.get_next_sibling()
-        self.assertEqual([i for i in ids if i], ["all", "updates", "recent", "fake"])
+        self.assertEqual([i for i in ids if i], ["all", "updates", "recent", "fake", "broken"])
+
+    def sidebar_rows(self):
+        rows, row = {}, self.win.source_list.get_first_child()
+        while row:
+            if hasattr(row, "view_id"):
+                labels, child = [], row.get_child().get_first_child()
+                while child:
+                    labels.append(child.get_label())
+                    child = child.get_next_sibling()
+                rows[row.view_id] = (labels, row.get_tooltip_text())
+            row = row.get_next_sibling()
+        return rows
+
+    def test_broken_source_is_marked_not_fatal(self):
+        labels, tooltip = self.sidebar_rows()["broken"]
+        self.assertIn("⚠️", labels)
+        self.assertIn("database is locked", tooltip)
+        self.assertEqual(len(self.visible()), 3)  # the other source still works
+
+    def test_sidebar_counts_follow_just_mine(self):
+        self.assertEqual(self.sidebar_rows()["fake"][0][-1], "3")
+        self.win.explicit_switch.set_active(True)
+        self.assertEqual(self.sidebar_rows()["fake"][0][-1], "2")
+        self.assertEqual(self.sidebar_rows()["all"][0][-1], "2")
+
+    def test_version_sort_is_natural(self):
+        column = self.win.col_version
+        self.win.table.sort_by_column(column, Gtk.SortType.ASCENDING)
+        spin(lambda: self.visible() == ["beta", "alpha", "gamma"])  # 1.9 < 1.10 < 10.0
+        self.win.table.sort_by_column(self.win.table.get_columns().get_item(0),
+                                      Gtk.SortType.ASCENDING)
+
+    def test_incremental_search_stays_correct(self):
+        steps = [("a", ["alpha", "beta", "gamma"]), ("al", ["alpha"]), ("alp", ["alpha"]),
+                 ("al", ["alpha"]), ("", ["alpha", "beta", "gamma"]), ("ga", ["gamma"]),
+                 ("gam third", ["gamma"]), ("gam second", []), ("fake beta", ["beta"])]
+        for text, expected in steps:
+            self.win.search.set_text(text)
+            self.win._on_search_changed(self.win.search)
+            self.assertEqual(self.visible(), expected, f"search {text!r}")
+
+    def test_update_all(self):
+        self.win.view = "updates"
+        self.win._refresh_view()
+        self.assertTrue(self.win.banner.get_reveal_child())
+        with mock.patch.object(self.win, "_run_action") as run:
+            self.win._on_update_all()
+        title, actions, _msg = run.call_args.args
+        self.assertEqual(title, "Updating 1 package…")
+        self.assertEqual([a.argv for a in actions], [["true", "update", "gamma"]])
+        self.win.view = "all"
+        self.win._refresh_view()
+        self.assertFalse(self.win.banner.get_reveal_child())
+
+    def test_double_click_opens_app(self):
+        with mock.patch("urpm.ui.window.launch") as launch:
+            self.win._on_row_activated(self.win.table, 0)  # alpha
+            spin(lambda: launch.called)
+        self.assertEqual(launch.call_args.args[0], ["true", "alpha"])
+        with mock.patch("urpm.ui.window.launch") as launch:
+            self.win._on_row_activated(self.win.table, 1)  # beta is a dependency, not an app
+            spin(lambda: "isn't an app" in self.win.toast_label.get_label())
+        launch.assert_not_called()
+
+    def test_compact_layouts(self):
+        self.win._apply_layout(2)
+        self.assertFalse(self.win.col_updated.get_visible())
+        self.assertFalse(self.win.col_source.get_visible())
+        self.win.selection.set_selected(Gtk.INVALID_LIST_POSITION)
+        self.win._layout_mode = 2
+        self.win._sync_details_visibility()
+        self.assertFalse(self.win.details.get_visible())  # empty panel hidden when small
+        self.win.selection.set_selected(0)
+        self.assertTrue(self.win.details.get_visible())
+        self.win._layout_mode = 0
+        self.win._apply_layout(0)
+        self.assertTrue(self.win.col_updated.get_visible())
+        self.assertTrue(self.win.details.get_visible())
+
+    def test_window_size_is_saved(self):
+        from urpm.ui import theme
+        with mock.patch.object(theme, "save_prefs") as save, \
+                mock.patch.object(theme, "load_prefs", return_value={"dark": True}):
+            self.win._save_window_state()
+        saved = save.call_args.args[0]
+        self.assertTrue(saved["dark"])  # other preferences are kept
+        self.assertEqual(set(saved["window"]), {"width", "height", "maximized"})
+
+    def test_multiple_actions_stop_at_first_failure(self):
+        from urpm.ui.dialogs import CommandDialog
+        done = []
+        dialog = CommandDialog(self.win, "Testing", [Action(["echo", "one"]), Action(["false"]),
+                                                     Action(["echo", "three"])], done.append)
+        spin(lambda: done)
+        start, end = dialog.buffer.get_bounds()
+        output = dialog.buffer.get_text(start, end, False)
+        self.assertEqual(done, [False])
+        self.assertIn("one", output)
+        self.assertNotIn("three\n", output.replace("$ echo three", ""))
+        dialog.destroy()
 
     def test_details_panel(self):
         self.win.selection.set_selected(2)  # gamma
@@ -148,7 +266,7 @@ class WindowTests(unittest.TestCase):
     def test_confirm_dialog_previews_extra_removals(self):
         from urpm.ui.dialogs import ConfirmRemoveDialog
         src = FakeSource()
-        pkg = Package("alpha", "1.0", "fake")
+        pkg = Package("alpha", "1.10", "fake")
         confirmed = []
         with mock.patch.object(FakeSource, "simulate_remove",
                                return_value=["alpha", "alpha-data", "libalpha"]):

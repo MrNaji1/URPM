@@ -138,6 +138,17 @@ label.stat-emoji { font-size: 1.7em; }
 label.stat-value { font-size: 1.55em; font-weight: 900; }
 label.stat-caption { font-size: 0.85em; color: @urpm_dim; font-weight: 700; }
 
+/* ---------- update-all banner ---------- */
+
+.banner {
+  background: @urpm_card_peach;
+  border-radius: 18px;
+  margin: 10px 18px 0;
+  padding: 10px 12px 10px 18px;
+}
+label.banner-text { font-weight: 800; }
+label.source-error { font-size: 0.95em; }
+
 /* ---------- table ---------- */
 
 .table-card {
@@ -171,7 +182,7 @@ columnview.package-table > header > button:hover { color: @urpm_accent; }
 
 columnview.package-table > listview > row {
   border-radius: 14px;
-  margin: 1px 8px;
+  margin: 1px 4px;
   padding: 4px 0;
   transition: background 120ms ease;
 }
