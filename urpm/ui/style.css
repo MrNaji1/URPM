@@ -1,0 +1,343 @@
+/* URPM stylesheet. Colours come from theme.py as @urpm_* named colours. */
+
+window.urpm {
+  background: @urpm_bg;
+  color: @urpm_fg;
+  font-family: "Nunito", "Quicksand", "Ubuntu Sans", "Ubuntu", "Cantarell", sans-serif;
+}
+
+/* ---------- header ---------- */
+
+window.urpm headerbar {
+  background: @urpm_header;
+  color: @urpm_fg;
+  box-shadow: none;
+  border-bottom: 1px solid @urpm_border;
+  min-height: 52px;
+}
+
+label.brand {
+  font-weight: 900;
+  font-size: 1.25em;
+  letter-spacing: 1px;
+  color: @urpm_accent;
+}
+
+window.urpm headerbar button {
+  border-radius: 999px;
+  background: transparent;
+  color: @urpm_fg;
+  box-shadow: none;
+  border: none;
+}
+window.urpm headerbar button:hover { background: @urpm_chip; }
+
+window.urpm entry, window.urpm headerbar entry {
+  border-radius: 999px;
+  background: @urpm_chip;
+  color: @urpm_fg;
+  border: 1px solid transparent;
+  box-shadow: none;
+  min-height: 34px;
+  padding: 0 12px;
+  outline: none;
+}
+window.urpm entry:focus-within {
+  border-color: @urpm_accent;
+  background: @urpm_surface;
+}
+
+/* ---------- sidebar ---------- */
+
+.sidebar {
+  background: @urpm_sidebar;
+  border-right: 1px solid @urpm_border;
+  padding: 16px 12px;
+}
+
+label.sidebar-heading {
+  font-size: 0.74em;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: @urpm_dim;
+  margin: 0 8px;
+}
+list.source-list > row.heading-row,
+list.source-list > row.heading-row:hover {
+  background: transparent;
+  padding: 14px 10px 4px;
+}
+list.source-list > row.heading-row:first-child { padding-top: 2px; }
+
+list.source-list { background: transparent; }
+list.source-list > row {
+  border-radius: 14px;
+  padding: 9px 10px;
+  margin: 2px 0;
+  color: @urpm_fg;
+  outline: none;
+  transition: background 150ms ease;
+}
+list.source-list > row:hover { background: @urpm_hover; }
+list.source-list > row:selected {
+  background: @urpm_selected;
+  font-weight: 800;
+}
+label.source-emoji { font-size: 1.15em; }
+
+label.count {
+  background: @urpm_chip;
+  color: @urpm_dim;
+  border-radius: 999px;
+  padding: 1px 9px;
+  font-size: 0.82em;
+  font-weight: 700;
+}
+list.source-list > row:selected label.count {
+  background: @urpm_accent;
+  color: @urpm_accent_fg;
+}
+
+.toggle-card {
+  background: @urpm_surface;
+  border: 1px solid @urpm_border;
+  border-radius: 16px;
+  padding: 12px 14px;
+}
+.toggle-card label.title { font-weight: 800; }
+
+window.urpm switch {
+  border-radius: 999px;
+  background: @urpm_track;
+  border: none;
+}
+window.urpm switch:checked { background: @urpm_accent; }
+window.urpm switch > slider {
+  border-radius: 999px;
+  background: #ffffff;
+  border: none;
+  box-shadow: 0 1px 3px alpha(black, 0.2);
+}
+
+/* ---------- stat cards ---------- */
+
+.stats { margin: 18px 18px 6px; }
+
+.stat-card {
+  border-radius: 20px;
+  padding: 14px 18px;
+  border: 1px solid alpha(@urpm_shadow, 0.08);
+  box-shadow: 0 3px 10px alpha(@urpm_shadow, 0.08);
+}
+.stat-card.pink  { background: @urpm_card_pink; }
+.stat-card.lilac { background: @urpm_card_lilac; }
+.stat-card.mint  { background: @urpm_card_mint; }
+.stat-card.peach { background: @urpm_card_peach; }
+
+label.stat-emoji { font-size: 1.7em; }
+label.stat-value { font-size: 1.55em; font-weight: 900; }
+label.stat-caption { font-size: 0.85em; color: @urpm_dim; font-weight: 700; }
+
+/* ---------- table ---------- */
+
+.table-card {
+  background: @urpm_surface;
+  border: 1px solid @urpm_border;
+  border-radius: 22px;
+  margin: 10px 18px 6px;
+  box-shadow: 0 3px 12px alpha(@urpm_shadow, 0.06);
+}
+
+columnview.package-table,
+columnview.package-table > listview {
+  background: transparent;
+  color: @urpm_fg;
+}
+
+columnview.package-table > header {
+  border-bottom: 1px solid @urpm_border;
+  padding: 2px 8px;
+}
+columnview.package-table > header > button {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: @urpm_dim;
+  font-weight: 800;
+  font-size: 0.85em;
+  padding: 10px 8px;
+}
+columnview.package-table > header > button:hover { color: @urpm_accent; }
+
+columnview.package-table > listview > row {
+  border-radius: 14px;
+  margin: 1px 8px;
+  padding: 4px 0;
+  transition: background 120ms ease;
+}
+columnview.package-table > listview > row:hover { background: @urpm_hover; }
+columnview.package-table > listview > row:selected {
+  background: @urpm_selected;
+  color: @urpm_fg;
+}
+columnview.package-table > listview > row > cell { padding: 4px 8px; }
+
+label.pkg-name { font-weight: 800; }
+label.dim { color: @urpm_dim; }
+label.small { font-size: 0.86em; }
+label.mono { font-family: "Ubuntu Sans Mono", "Ubuntu Mono", monospace; font-size: 0.9em; }
+
+/* letter avatars */
+label.avatar {
+  min-width: 34px;
+  min-height: 34px;
+  border-radius: 12px;
+  font-weight: 900;
+}
+label.avatar.big {
+  min-width: 64px;
+  min-height: 64px;
+  border-radius: 22px;
+  font-size: 1.9em;
+}
+label.avatar-0 { background: #ffd6e7; color: #a02d63; }
+label.avatar-1 { background: #e3dbff; color: #5439a8; }
+label.avatar-2 { background: #d4f3e5; color: #1f7453; }
+label.avatar-3 { background: #ffe5cc; color: #9a5316; }
+label.avatar-4 { background: #d7ecff; color: #2a6497; }
+label.avatar-5 { background: #fff3b8; color: #85680a; }
+
+/* source pills */
+label.pill {
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.8em;
+  font-weight: 800;
+}
+label.pill-blue   { background: @urpm_blue_bg;   color: @urpm_blue_fg; }
+label.pill-lilac  { background: @urpm_lilac_bg;  color: @urpm_lilac_fg; }
+label.pill-peach  { background: @urpm_peach_bg;  color: @urpm_peach_fg; }
+label.pill-rose   { background: @urpm_rose_bg;   color: @urpm_rose_fg; }
+label.pill-mint   { background: @urpm_mint_bg;   color: @urpm_mint_fg; }
+label.pill-sky    { background: @urpm_sky_bg;    color: @urpm_sky_fg; }
+label.pill-lemon  { background: @urpm_lemon_bg;  color: @urpm_lemon_fg; }
+label.pill-gray   { background: @urpm_gray_bg;   color: @urpm_gray_fg; }
+label.pill-update { background: @urpm_update_bg; color: @urpm_update_fg; font-size: 0.75em; padding: 0 8px; }
+label.pill-mine    { background: @urpm_card_pink;  color: @urpm_accent; }
+label.pill-dep     { background: @urpm_chip;       color: @urpm_dim; }
+
+/* size bars */
+progressbar.size-bar > trough {
+  min-height: 6px;
+  min-width: 60px;
+  border-radius: 999px;
+  background: @urpm_track;
+  border: none;
+}
+progressbar.size-bar > trough > progress {
+  min-height: 6px;
+  border-radius: 999px;
+  background: @urpm_accent;
+  border: none;
+}
+
+label.status {
+  color: @urpm_dim;
+  font-size: 0.85em;
+  margin: 4px 26px 14px;
+}
+
+/* ---------- details panel ---------- */
+
+.details {
+  background: @urpm_surface;
+  border-left: 1px solid @urpm_border;
+}
+.details-inner { padding: 22px 20px; }
+
+label.detail-title { font-size: 1.4em; font-weight: 900; }
+label.section-heading {
+  font-size: 0.78em;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: @urpm_dim;
+  margin-top: 10px;
+}
+label.key { color: @urpm_dim; font-weight: 700; }
+
+button.cute {
+  background: @urpm_accent;
+  color: @urpm_accent_fg;
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-weight: 800;
+  border: none;
+  box-shadow: 0 2px 8px alpha(@urpm_accent, 0.35);
+}
+button.cute:hover { background: shade(@urpm_accent, 1.06); }
+button.cute:active { background: shade(@urpm_accent, 0.94); }
+
+button.soft {
+  background: @urpm_chip;
+  color: @urpm_fg;
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-weight: 700;
+  border: none;
+  box-shadow: none;
+}
+button.soft:hover { background: @urpm_selected; }
+
+button.danger {
+  background: @urpm_danger;
+  color: @urpm_danger_fg;
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-weight: 800;
+  border: none;
+  box-shadow: 0 2px 8px alpha(@urpm_danger, 0.3);
+}
+button.danger:hover { background: shade(@urpm_danger, 1.06); }
+button.danger:disabled { opacity: 0.5; }
+button.small-button { padding: 4px 12px; font-size: 0.88em; }
+
+window.urpm linkbutton, window.urpm button.link { color: @urpm_accent; padding: 0; }
+
+/* ---------- dialogs ---------- */
+
+window.dialog-window { background: @urpm_surface; }
+.dialog-outer { padding: 22px 24px 18px; }
+.dialog-body { padding: 0; }
+window.dialog-window > grid.dialog-body { padding: 24px; }
+label.command {
+  background: @urpm_chip;
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+label.warning { color: @urpm_warning; font-weight: 800; }
+
+textview.log, textview.log > text {
+  background: @urpm_chip;
+  color: @urpm_fg;
+  font-size: 0.85em;
+}
+textview.log { padding: 10px 12px; }
+scrolledwindow.log-scroller { border-radius: 14px; }
+
+/* ---------- misc ---------- */
+
+label.big-emoji { font-size: 3em; }
+label.placeholder-title { font-size: 1.2em; font-weight: 900; }
+
+.toast {
+  background: @urpm_fg;
+  color: @urpm_bg;
+  border-radius: 999px;
+  padding: 9px 20px;
+  font-weight: 800;
+  box-shadow: 0 6px 20px alpha(black, 0.25);
+}
+
+window.urpm scrollbar { background: transparent; border: none; }
+window.urpm scrollbar slider { background: @urpm_track; border-radius: 999px; min-width: 6px; min-height: 6px; }
+window.urpm scrollbar slider:hover { background: @urpm_dim; }

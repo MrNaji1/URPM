@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "urpm"
+dynamic = ["version"]
+description = "A cute GTK app that shows every package installed on your Linux machine"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "MrNaji1" }]
+requires-python = ">=3.10"
+# PyGObject + GTK 4 come from your distro (see README), so they're not listed here:
+# install with `pipx install --system-site-packages ...` so URPM can see them.
+dependencies = []
+keywords = ["linux", "packages", "apt", "flatpak", "snap", "appimage", "gtk"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: X11 Applications :: GTK",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Software Distribution",
+]
+
+[project.urls]
+Homepage = "https://github.com/MrNaji1/URPM"
+Issues = "https://github.com/MrNaji1/URPM/issues"
+
+[project.scripts]
+urpm = "urpm.ui.app:run"
+
+[tool.setuptools.dynamic]
+version = { attr = "urpm.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["urpm*"]
+
+[tool.setuptools.package-data]
+urpm = ["data/*", "data/icons/*"]
+"urpm.ui" = ["*.css"]

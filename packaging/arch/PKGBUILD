@@ -1,0 +1,22 @@
+# Maintainer: MrNaji1 <https://github.com/MrNaji1>
+# Arch Linux, Manjaro, EndeavourOS, CachyOS, Garuda…
+#   git clone https://github.com/MrNaji1/URPM && cd URPM/packaging/arch && makepkg -si
+pkgname=urpm
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Cute GTK app that shows every package installed on your Linux machine"
+arch=('any')
+url="https://github.com/MrNaji1/URPM"
+license=('MIT')
+depends=('python' 'python-gobject' 'gtk4')
+optdepends=('polkit: remove and update packages from inside URPM'
+            'pacman-contrib: see available pacman updates (checkupdates)'
+            'flatpak: list Flatpak apps')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+package() {
+  cd "URPM-$pkgver"
+  make install DESTDIR="$pkgdir" PREFIX=/usr
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

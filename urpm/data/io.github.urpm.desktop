@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=URPM
+GenericName=Package Viewer
+Comment=See every package installed on your computer
+Exec=urpm
+Icon=urpm
+Terminal=false
+Categories=System;PackageManager;GTK;
+Keywords=packages;apt;flatpak;snap;rpm;pacman;installed;
+StartupWMClass=io.github.urpm
+StartupNotify=true

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.urpm</id>
+  <name>URPM</name>
+  <summary>See every package installed on your computer</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="io.github.mrnaji1">
+    <name>MrNaji1</name>
+  </developer>
+  <description>
+    <p>URPM is a cute, friendly window into every package on your Linux machine. It gathers
+      what you have installed from your distro's package manager, Flatpak, Snap, AppImages,
+      Homebrew, Nix, pip, pipx, npm and Cargo into one searchable list.</p>
+    <ul>
+      <li>See what's installed, how big it is and when it changed</li>
+      <li>Filter to only the things you installed yourself</li>
+      <li>Check for updates across every package manager at once</li>
+      <li>Open, update or safely remove packages, with a preview of what else would go</li>
+      <li>Export your package list to CSV, JSON or text</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.urpm.desktop</launchable>
+  <url type="homepage">https://github.com/MrNaji1/URPM</url>
+  <url type="bugtracker">https://github.com/MrNaji1/URPM/issues</url>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="1.0.0" date="2026-09-27"/>
+  </releases>
+</component>
