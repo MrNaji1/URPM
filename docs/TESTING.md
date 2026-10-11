@@ -15,7 +15,7 @@ on your screen, and a URPM window you already have open isn't touched. CI does t
 
 ## 1. Automated tests
 
-**173 tests, 93% code coverage.** GitHub runs all of them on every push (the window tests
+**174 tests, 93% code coverage.** GitHub runs all of them on every push (the window tests
 under Xvfb), fails if coverage drops below 90%, and lints the code with `ruff`.
 
 | File | Tests | What it covers |
@@ -24,7 +24,7 @@ under Xvfb), fails if coverage drops below 90%, and lints the code with `ruff`.
 | `test_e2e_sources.py` | 21 | **Every package manager end to end** on a fake system |
 | `test_ui.py` | 49 | The real window, run on a hidden display |
 | `test_whole_picture.py` | 16 | Cleanup centre, "needed by", icons and duplicates on the fake system |
-| `test_up_to_date.py` | 16 | History logs, security updates, holds, background checks and notifications |
+| `test_up_to_date.py` | 17 | History logs, security updates, holds, background checks and notifications |
 | `test_app.py` | 11 | Command-line options, saved settings, shared helpers |
 | `test_install.py` | 6 | The launcher and `install.sh` |
 | `test_theme.py` | 6 | Theme colours, readability, theme choice at startup |

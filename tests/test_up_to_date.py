@@ -227,8 +227,11 @@ class NotifyTests(unittest.TestCase):
         self.assertTrue(send.call_args.kwargs["urgent"])
         self.assertNotIn("apt-get install", calls)                   # checking never updates
 
-    def test_send_uses_dbus_and_falls_back_to_notify_send(self):
-        from gi.repository import Gio
+    def test_send_uses_dbus(self):
+        try:
+            from gi.repository import Gio
+        except ImportError:
+            self.skipTest("PyGObject isn't installed")
         bus = mock.Mock()
         with mock.patch.object(Gio, "bus_get_sync", return_value=bus):
             self.assertTrue(notify.send("Hello", "World", urgent=True))
@@ -237,13 +240,17 @@ class NotifyTests(unittest.TestCase):
         payload = args[4].unpack()
         self.assertEqual(payload[3:5], ("Hello", "World"))
         self.assertEqual(payload[6]["urgency"], 2)
-        with mock.patch.object(Gio, "bus_get_sync", side_effect=RuntimeError("no bus")), \
+
+    def test_send_falls_back_to_notify_send(self):
+        # No PyGObject (or no session bus): use notify-send, or give up quietly.
+        with mock.patch.dict(sys.modules, {"gi": None}), \
                 mock.patch("urpm.notify.shutil.which", return_value="/usr/bin/notify-send"), \
                 mock.patch("urpm.notify.subprocess.run") as run:
             run.return_value.returncode = 0
-            self.assertTrue(notify.send("Hi", "There"))
+            self.assertTrue(notify.send("Hi", "There", urgent=True))
         self.assertEqual(run.call_args.args[0][-2:], ["Hi", "There"])
-        with mock.patch.object(Gio, "bus_get_sync", side_effect=RuntimeError("no bus")), \
+        self.assertIn("--urgency=critical", run.call_args.args[0])
+        with mock.patch.dict(sys.modules, {"gi": None}), \
                 mock.patch("urpm.notify.shutil.which", return_value=None):
             self.assertFalse(notify.send("Hi", "There"))
 
