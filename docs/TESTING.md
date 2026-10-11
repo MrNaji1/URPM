@@ -15,7 +15,7 @@ on your screen, and a URPM window you already have open isn't touched. CI does t
 
 ## 1. Automated tests
 
-### Parsers and helpers (`tests/test_sources.py`, 41 tests, no GTK needed)
+### Parsers and helpers (`tests/test_sources.py`, 46 tests, no GTK needed)
 
 | Area | What's checked |
 |---|---|
@@ -24,7 +24,10 @@ on your screen, and a URPM window you already have open isn't touched. CI does t
 | Name/version splitting | Void `pkg-1.0_1`, Alpine `pkg-1.0-r15`, names with digits (`libfoo-2-1.0_1`) |
 | Version sorting | natural order: `1.9 < 1.10.2`, `9.0 < 10.0`, epochs, `-rc`, `v3` |
 | Actions | `sudo` display, `pkexec env …` for root, shell quoting of paths with spaces |
-| Root safety | commands run as root ignore user-writable folders on `$PATH` |
+| Root safety | `pkexec`, `env` and the program all come from system folders; a fake one in `~/.local/bin` is never used; refuses instead of falling back |
+| Option injection | package names like `--purge`, `-y` or with newlines are refused before any command runs; npm names come from folders, not `package.json` |
+| Untrusted AppImages | files in Downloads/Desktop or not yet executable need confirmation; only made executable for their owner |
+| Desktop entries | entries in subfolders (`applications/kde4/foo.desktop`) launch with the right ID |
 | Update matching | new versions only, Flatpak "new build" with the same version number |
 | Batched updates | one APT command for many packages, one Flatpak command **per installation** |
 | APT / dpkg | status filtering (`ii`, `hi`, `rc`), multiarch "installed by you", description reflow, `apt-get -s` simulation, `apt list --upgradable`, `pkexec` + noninteractive remove |
@@ -38,9 +41,21 @@ on your screen, and a URPM window you already have open isn't touched. CI does t
 | Homebrew / pip / pipx / npm / Cargo | JSON formats, name normalization, scoped npm packages, git vs crates.io sources |
 | Registry | 16 sources, unique ids, labels and emoji present |
 
-### Export (`tests/test_export.py`, 2 tests)
+### Export (`tests/test_export.py`, 3 tests)
 
-CSV quoting and columns, JSON, plain text, file extension detection (case-insensitive).
+CSV quoting and columns, JSON, plain text, file extension detection (case-insensitive),
+and formula escaping so a package summary like `=HYPERLINK(…)` stays plain text in
+spreadsheets.
+
+### Launcher and installer (`tests/test_install.py`, 5 tests)
+
+| Test | What's checked |
+|---|---|
+| launcher isolation | running `urpm` inside a folder with its own `urpm/` (or with `PYTHONPATH` set) still runs the real URPM |
+| verified download | a release whose checksum matches is unpacked |
+| tampered download | a release that doesn't match `SHA256SUMS` installs nothing |
+| odd release names | `v1.0; rm -rf ~`, `../../x`, `main` and similar are rejected |
+| cut-off script | a partly downloaded `install.sh` runs nothing |
 
 ### Themes (`tests/test_theme.py`, 6 tests, no windows)
 
@@ -50,7 +65,7 @@ all five themes are registered (Gotham is near-black with yellow), text stays re
 old 1.x light/dark setting, or the system), and the stylesheet includes previews of every
 theme with no hardcoded colours.
 
-### Real window (`tests/test_ui.py`, 18 tests, runs GTK 4)
+### Real window (`tests/test_ui.py`, 24 tests, runs GTK 4)
 
 These drive the real `UrpmWindow` with a fake package source and a deliberately broken one.
 
@@ -72,6 +87,12 @@ These drive the real `UrpmWindow` with a fake package source and a deliberately 
 | settings | picking a theme applies it, marks its card, saves it and keeps other settings |
 | remove preview | "Remove 3 packages", destructive button not focused, confirm callback |
 | commands | output streamed, failure reported, multi-step stops at the first failure |
+| progressive loading | a slow package manager doesn't hold back the others; status shows what's still loading |
+| nameless packages | packages without a name are skipped |
+| untrusted apps | opening one shows a confirmation; nothing runs until "Open anyway" |
+| unsafe names in the UI | a refused name shows a message and never opens the remove dialog |
+| cancel | a running command (and the helpers it started) stops within seconds |
+| output limit | a command printing 20,000 lines keeps only the last 4,000 |
 
 ## 2. Manual checklist
 

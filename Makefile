@@ -37,7 +37,7 @@ install:
 	install -d $(LIBDIR) $(BINDIR) $(APPDIR) $(ICONDIR) $(METADIR)
 	cp -r urpm $(LIBDIR)/
 	find $(LIBDIR) -name __pycache__ -prune -exec rm -rf {} +
-	printf '#!/bin/sh\nPYTHONPATH="%s" exec python3 -m urpm "$$@"\n' "$(PREFIX)/share/urpm" > $(BINDIR)/urpm
+	sed 's|@PREFIX@|$(PREFIX)/share/urpm|' urpm/data/urpm-launcher.sh.in > $(BINDIR)/urpm
 	chmod 755 $(BINDIR)/urpm
 	install -m 644 urpm/data/$(APP_ID).desktop $(APPDIR)/$(APP_ID).desktop
 	install -m 644 urpm/data/icons/urpm.svg $(ICONDIR)/urpm.svg

@@ -1,0 +1,5 @@
+#!/bin/sh
+# URPM launcher. Python's isolated mode (-I) keeps the current folder and $PYTHON*
+# variables out of the import path, so running `urpm` inside a downloaded project can't
+# load that project's code instead of URPM's.
+exec python3 -I -c 'import sys, runpy; sys.path.insert(0, "@PREFIX@"); runpy.run_module("urpm", run_name="__main__", alter_sys=True)' "$@"

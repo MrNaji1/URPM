@@ -36,5 +36,19 @@ def render_export(items, path: str) -> str:
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=EXPORT_FIELDS)
     writer.writeheader()
-    writer.writerows(rows)
+    writer.writerows({key: csv_safe(value) for key, value in row.items()} for row in rows)
     return out.getvalue()
+
+
+FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+
+
+def csv_safe(value):
+    """Stop spreadsheets from running a cell as a formula (CSV injection).
+
+    Package summaries and names come from the packages themselves, so one starting with
+    "=" could otherwise run as a formula when the file is opened in LibreOffice or Excel.
+    """
+    if isinstance(value, str) and value.startswith(FORMULA_START):
+        return "'" + value
+    return value

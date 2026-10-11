@@ -75,6 +75,7 @@ class SettingsWindow(Gtk.Window):
         button = Gtk.Button(child=box, css_classes=["theme-card"],
                             tooltip_text=f"Use the {item.name} theme")
         button.check = check
+        button.update_property([Gtk.AccessibleProperty.LABEL], [f"{item.name} theme"])
         button.connect("clicked", lambda _b: self.choose(item.id))
         self._cards[item.id] = button
         return button

@@ -61,17 +61,47 @@ class Action:
         return prefix + env + shlex.join(self.argv)
 
     def full_argv(self) -> list[str]:
-        if self.root:
-            # Never run something from a user-writable folder as root.
-            exe = shutil.which(self.argv[0], path=SYSTEM_PATH) or self.argv[0]
-        else:
-            exe = which(self.argv[0]) or self.argv[0]
+        """The exact argv to run. Raises UnsafeCommand rather than run something risky."""
+        if not self.root:
+            return [which(self.argv[0]) or self.argv[0], *self.argv[1:]]
+        # Everything that runs as root (pkexec, env and the program itself) must come from
+        # a system folder, never from a user-writable one like ~/.local/bin on $PATH.
+        pkexec, env_bin, exe = (root_binary(name) for name in ("pkexec", "env", self.argv[0]))
+        if not (pkexec and env_bin and exe):
+            missing = next(n for n, p in (("pkexec", pkexec), ("env", env_bin),
+                                          (self.argv[0], exe)) if not p)
+            raise UnsafeCommand(f"{missing} isn't installed in a system folder")
         argv = [exe, *self.argv[1:]]
         env = [f"{k}={v}" for k, v in self.env.items()]
-        if self.root:
-            # pkexec wipes the environment, so variables go through `env`.
-            return ["pkexec", "env", *env, *argv] if env else ["pkexec", *argv]
-        return argv
+        # pkexec wipes the environment, so variables go through `env`.
+        return [pkexec, env_bin, *env, *argv] if env else [pkexec, *argv]
+
+
+class UnsafeCommand(RuntimeError):
+    """Raised instead of running a command that could be hijacked or misread."""
+
+
+def root_binary(name: str) -> str | None:
+    """Absolute path of a program in a system folder, or None."""
+    if os.path.isabs(name):
+        return name if os.access(name, os.X_OK) and not name.startswith(os.path.expanduser("~")) \
+            else None
+    return shutil.which(name, path=SYSTEM_PATH)
+
+
+def check_targets(action: "Action", packages: list["Package"]) -> None:
+    """Refuse package names that a package manager could read as an option (S5).
+
+    Names come from package databases, but some (npm's package.json, AppImage file
+    names) are controlled by the package itself.
+    """
+    for pkg in packages:
+        for value in {pkg.name, pkg.ident}:
+            if value not in action.argv:
+                continue
+            if value.startswith("-") or any(ch in value for ch in "\n\r\x00"):
+                raise UnsafeCommand(f"refusing to pass the package name {value!r} to "
+                                    f"{action.argv[0]}: it could be read as an option")
 
 
 class Source:
@@ -120,9 +150,26 @@ class Source:
     def launch_argv(self, pkg: Package) -> list[str] | None:
         return None
 
+    def launch_warning(self, pkg: Package) -> str | None:
+        """A reason to ask before opening this package (e.g. an untrusted download)."""
+        return None
+
     def remove_command(self, pkg: Package) -> str:
         action = self.remove_action(pkg)
         return action.display() if action else ""
+
+    # The UI always goes through these two, which add the safety checks.
+    def safe_remove_action(self, pkg: Package) -> Action | None:
+        action = self.remove_action(pkg)
+        if action:
+            check_targets(action, [pkg])
+        return action
+
+    def safe_update_actions(self, pkgs: list[Package]) -> list[Action]:
+        actions = self.update_actions(pkgs)
+        for action in actions:
+            check_targets(action, pkgs)
+        return actions
 
 
 SYSTEM_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -251,7 +298,8 @@ def desktop_launcher(files: list[str]) -> list[str] | None:
             except OSError:
                 continue
             if "NoDisplay=true" not in entry and "Type=Application" in entry:
-                return [launcher, os.path.basename(path)]
+                desktop_id = path.split("/share/applications/", 1)[1].replace("/", "-")
+                return [launcher, desktop_id]
     return None
 
 

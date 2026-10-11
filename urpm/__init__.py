@@ -1,4 +1,4 @@
 """URPM — a cute little window into every package on your Linux machine."""
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 APP_ID = "io.github.urpm"

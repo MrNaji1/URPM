@@ -7,6 +7,9 @@ import re
 
 from .base import UNIVERSAL, Action, Details, Package, Source, can_write
 
+# Browsers and chat apps drop files here without asking, so AppImages found in them are
+# treated as untrusted until the user confirms (see launch_warning).
+UNTRUSTED_DIRS = ("~/Downloads", "~/Desktop")
 SEARCH_DIRS = ("~/Applications", "~/.local/bin", "~/AppImages", "~/.appimages", "~/Apps",
                "~/bin", "~/Downloads", "~/Desktop", "/opt", "/usr/local/bin")
 _ARCH = r"(?:x86[-_]64|amd64|aarch64|arm64|armhf|x64|i[36]86|linux(?:64)?)"
@@ -93,8 +96,21 @@ class AppImageSource(Source):
     def launch_argv(self, pkg: Package) -> list[str]:
         if os.access(pkg.ident, os.X_OK):
             return [pkg.ident]
-        # Freshly downloaded AppImages usually aren't executable yet.
-        return ["sh", "-c", 'chmod +x "$1" && exec "$1"', "sh", pkg.ident]
+        # Freshly downloaded AppImages aren't executable yet. This only ever runs after
+        # the user confirmed the warning from launch_warning().
+        return ["sh", "-c", 'chmod u+x "$1" && exec "$1"', "sh", pkg.ident]
+
+    def launch_warning(self, pkg: Package) -> str | None:
+        """Ask before running anything that could have been downloaded by a website."""
+        folder = os.path.realpath(os.path.dirname(pkg.ident))
+        untrusted = [os.path.realpath(os.path.expanduser(d)) for d in UNTRUSTED_DIRS]
+        if not os.access(pkg.ident, os.X_OK):
+            return ("This file isn't marked as a program yet. Opening it will make it "
+                    "executable and run it with your permissions.")
+        if folder in untrusted:
+            return ("This file is in a downloads folder, where web browsers save files "
+                    "without asking.")
+        return None
 
     def remove_action(self, pkg: Package) -> Action:
         if can_write(os.path.dirname(pkg.ident)):

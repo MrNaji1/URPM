@@ -130,9 +130,11 @@ need **polkit** (`pkexec`), which almost every desktop ships.
 curl -fsSL https://raw.githubusercontent.com/MrNaji1/URPM/main/install.sh | bash
 ```
 
-This installs URPM for your user only, so it needs no root. If GTK 4 bindings are
-missing, it detects your distro and **asks before** installing them with `sudo`. Afterwards,
-find **URPM** in your app menu or run `urpm`.
+This installs the latest URPM release for your user only, so it needs no root. It checks
+the download's **SHA-256 checksum** first. If GTK 4 bindings are missing, it detects your
+distro and **asks before** installing them with `sudo`. Afterwards, find **URPM** in your
+app menu or run `urpm`. To install a specific version, add `URPM_VERSION=v1.4.0` before
+`bash`.
 
 Prefer to look before you run? Clone it instead:
 
@@ -332,7 +334,16 @@ python3 -m urpm
   root without **your password** (asked by your system's polkit prompt).
 - Before removing, it asks the package manager to **simulate** the removal (`apt-get -s`,
   `pacman --print`, `apk -s`) and shows you every package that would go.
-- Every dialog shows the **exact command** it will run.
+- Every dialog shows the **exact command** it will run, and a running command can be
+  **cancelled**.
+- Commands that run as administrator only ever use programs from **system folders**
+  (`/usr/bin`, `/usr/sbin`…), never from your home folder, so nothing in `~/.local/bin`
+  can sneak into a password prompt.
+- Package names that look like command options (`-rf`, `--purge`) are **refused**.
+- AppImages in **Downloads** or **Desktop**, or ones not marked as programs yet, are only
+  opened after you **confirm** and see the full file path.
+- The `curl | bash` installer downloads a **release**, checks its **SHA-256 checksum**,
+  and refuses to install anything that doesn't match.
 - AppImages are moved to the **trash**, not deleted.
 - Your package list never leaves your computer. The only network traffic is your package
   managers checking for updates.

@@ -61,8 +61,11 @@ class HelperTests(unittest.TestCase):
         action = Action(["apt-get", "remove", "-y", "foo"], root=True,
                         env={"DEBIAN_FRONTEND": "noninteractive"}, pretty="sudo apt remove foo")
         self.assertEqual(action.display(), "sudo apt remove foo")
-        argv = action.full_argv()
-        self.assertEqual(argv[:3], ["pkexec", "env", "DEBIAN_FRONTEND=noninteractive"])
+        with mock.patch("urpm.sources.base.shutil.which",
+                        side_effect=lambda name, path=None: f"/usr/bin/{name}"):
+            argv = action.full_argv()
+        self.assertEqual(argv[:4], ["/usr/bin/pkexec", "/usr/bin/env",
+                                    "DEBIAN_FRONTEND=noninteractive", "/usr/bin/apt-get"])
         self.assertEqual(argv[-3:], ["remove", "-y", "foo"])
         self.assertEqual(Action(["gio", "trash", "/tmp/my app.AppImage"]).display(),
                          "gio trash '/tmp/my app.AppImage'")
@@ -253,6 +256,59 @@ class RpmTests(unittest.TestCase):
         self.assertEqual(parse_zypper_dry_run(text), ["gimp", "gimp-lang",
                                                       "gimp-plugins-python3"])
 
+    def test_root_commands_never_use_user_folders(self):
+        """S1: a fake pkexec/env/apt-get in ~/.local/bin must never be what runs as root."""
+        from urpm.sources.base import SYSTEM_PATH, UnsafeCommand
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("pkexec", "env", "apt-get"):
+                path = os.path.join(tmp, name)
+                with open(path, "w") as fh:
+                    fh.write("#!/bin/sh\n")
+                os.chmod(path, 0o700)
+            with mock.patch.dict(os.environ, {"PATH": f"{tmp}:{os.environ['PATH']}"}):
+                calls = []
+
+                def fake_which(name, path=None):
+                    calls.append(path)
+                    return f"/usr/bin/{name}"
+                with mock.patch("urpm.sources.base.shutil.which", side_effect=fake_which):
+                    argv = Action(["apt-get", "remove", "x"], root=True,
+                                  env={"A": "1"}).full_argv()
+                self.assertTrue(all(p == SYSTEM_PATH for p in calls))
+                self.assertFalse(any(arg.startswith(tmp) for arg in argv))
+                # Not found in a system folder: refuse instead of falling back to $PATH.
+                with mock.patch("urpm.sources.base.shutil.which", return_value=None), \
+                        self.assertRaises(UnsafeCommand):
+                    Action(["apt-get", "remove", "x"], root=True).full_argv()
+                # An absolute path inside the home folder is refused too.
+                with self.assertRaises(UnsafeCommand):
+                    Action([os.path.expanduser("~/evil"), "x"], root=True).full_argv()
+
+    def test_option_like_package_names_are_refused(self):
+        """S5: a package name starting with '-' must never reach a package manager."""
+        from urpm.sources.base import UnsafeCommand
+        from urpm.sources.dpkg import DpkgSource
+        src = DpkgSource()
+        with mock.patch("urpm.sources.dpkg.which", return_value="/usr/bin/apt-get"):
+            self.assertIsNotNone(src.safe_remove_action(Package("fine-name", "1", "apt")))
+            for bad in ("--purge", "-y", "evil\nname"):
+                with self.assertRaises(UnsafeCommand):
+                    src.safe_remove_action(Package(bad, "1", "apt"))
+                with self.assertRaises(UnsafeCommand):
+                    src.safe_update_actions([Package("ok", "1", "apt", update="2"),
+                                             Package(bad, "1", "apt", update="2")])
+
+    def test_desktop_ids_in_subfolders(self):
+        """S8: applications/kde4/foo.desktop is launched as kde4-foo.desktop."""
+        from urpm.sources.base import desktop_launcher
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "share", "applications", "kde4", "foo.desktop")
+            os.makedirs(os.path.dirname(path))
+            with open(path, "w") as fh:
+                fh.write("[Desktop Entry]\nType=Application\nName=Foo\n")
+            with mock.patch("urpm.sources.base.which", return_value="/usr/bin/gtk-launch"):
+                self.assertEqual(desktop_launcher([path]), ["/usr/bin/gtk-launch", "kde4-foo.desktop"])
+
     def test_root_commands_ignore_user_folders(self):
         with tempfile.TemporaryDirectory() as tmp:
             fake = os.path.join(tmp, "apt-get")
@@ -386,6 +442,31 @@ class AppImageTests(unittest.TestCase):
         self.assertEqual(split_appimage_name("nvim.appimage"), ("nvim", ""))
         self.assertEqual(split_appimage_name("kdenlive_x86_64.AppImage"), ("kdenlive", ""))
 
+    def test_untrusted_appimages_need_confirmation(self):
+        """S2: AppImages in Downloads, or not yet executable, must ask before running."""
+        with tempfile.TemporaryDirectory() as home:
+            downloads = os.path.join(home, "Downloads")
+            apps = os.path.join(home, "Applications")
+            os.makedirs(downloads)
+            os.makedirs(apps)
+            src = AppImageSource()
+            with mock.patch.dict(os.environ, {"HOME": home}):
+                fresh = os.path.join(downloads, "Firefox-x86_64.AppImage")
+                open(fresh, "w").close()  # not executable, like a browser download
+                trusted = os.path.join(apps, "Tool.AppImage")
+                open(trusted, "w").close()
+                os.chmod(trusted, 0o755)
+                in_downloads = os.path.join(downloads, "Ran-before.AppImage")
+                open(in_downloads, "w").close()
+                os.chmod(in_downloads, 0o755)
+                pkg = lambda path: Package("x", "1", "appimage", ident=path)  # noqa: E731
+                self.assertIn("isn't marked as a program", src.launch_warning(pkg(fresh)))
+                self.assertIn("downloads folder", src.launch_warning(pkg(in_downloads)))
+                self.assertIsNone(src.launch_warning(pkg(trusted)))
+                self.assertEqual(src.launch_argv(pkg(trusted)), [trusted])
+                # Still never made executable for anyone but the owner.
+                self.assertIn("chmod u+x", " ".join(src.launch_argv(pkg(fresh))))
+
     def test_scan_and_actions(self):
         with tempfile.TemporaryDirectory() as tmp:
             nested = os.path.join(tmp, "Apps")
@@ -444,6 +525,18 @@ class LanguageToolTests(unittest.TestCase):
                 os.makedirs(os.path.join(root, name))
             self.assertEqual([os.path.relpath(p, root) for p in package_dirs(root)],
                              ["@vue/cli", "typescript"])
+
+    def test_npm_names_come_from_folders_not_package_json(self):
+        """S5: package.json's "name" is written by the package, so it isn't trusted."""
+        from urpm.sources.npm import NpmSource
+        with tempfile.TemporaryDirectory() as root:
+            for folder, name in (("typescript", "-rf"), ("@vue/cli", "@vue/cli")):
+                os.makedirs(os.path.join(root, folder))
+                with open(os.path.join(root, folder, "package.json"), "w") as fh:
+                    json.dump({"name": name, "version": "1.0.0"}, fh)
+            with mock.patch.object(NpmSource, "_root", return_value=root):
+                names = sorted(p.name for p in NpmSource().list_packages())
+        self.assertEqual(names, ["@vue/cli", "typescript"])
 
     def test_cargo(self):
         text = json.dumps({"installs": {

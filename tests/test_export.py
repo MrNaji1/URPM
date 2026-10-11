@@ -24,6 +24,18 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(rows[1]["update_available"], "1.1")
         self.assertEqual(rows[1]["installed_by_you"], "False")
 
+    def test_csv_formulas_are_neutralised(self):
+        """S7: a summary like '=HYPERLINK(...)' must stay text in spreadsheets."""
+        items = [item("evil", summary='=HYPERLINK("http://x","click")'),
+                 item("@sum", summary="+1+1"), item("ok", summary="-just a dash")]
+        rows = list(csv.DictReader(io.StringIO(render_export(items, "out.csv"))))
+        self.assertEqual(rows[0]["summary"], '\'=HYPERLINK("http://x","click")')
+        self.assertEqual(rows[1]["name"], "'@sum")
+        self.assertEqual(rows[1]["summary"], "'+1+1")
+        self.assertEqual(rows[2]["summary"], "'-just a dash")
+        # JSON keeps the exact text: it's data, not a spreadsheet.
+        self.assertEqual(json.loads(render_export(items, "x.json"))[0]["summary"][0], "=")
+
     def test_json_and_text(self):
         data = json.loads(render_export(self.ITEMS, "OUT.JSON"))
         self.assertEqual([r["name"] for r in data], ["7zip", "zstd"])

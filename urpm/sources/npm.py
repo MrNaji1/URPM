@@ -67,7 +67,9 @@ class NpmSource(Source):
         packages = []
         for folder in package_dirs(root):
             meta = read_package_json(folder)
-            name = meta.get("name") or os.path.relpath(folder, root)
+            # The folder is what npm installed; package.json's "name" is written by the
+            # package itself, so it's not trusted for commands (it could start with "-").
+            name = os.path.relpath(folder, root)
             packages.append(Package(
                 name=name,
                 version=meta.get("version", ""),

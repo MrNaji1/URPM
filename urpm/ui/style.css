@@ -287,6 +287,8 @@ button.cute {
 }
 button.cute:hover { background: shade(@urpm_accent, 1.06); }
 button.cute:active { background: shade(@urpm_accent, 0.94); }
+button.cute:disabled { opacity: 0.4; box-shadow: none; }
+button.soft:disabled { opacity: 0.5; }
 
 button.soft {
   background: @urpm_chip;

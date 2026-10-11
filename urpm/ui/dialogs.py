@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import signal
 import subprocess
 import threading
 import time
@@ -11,10 +12,12 @@ import time
 from gi.repository import GLib, Gtk, Pango
 
 from urpm.sources import Action, Package, Source, human_size
-from urpm.sources.base import which
+from urpm.sources.base import UnsafeCommand, root_binary, which
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\r")
 PKEXEC_CANCELLED, PKEXEC_DENIED = 126, 127
+CANCELLED = -15          # our own code for "the user pressed Cancel"
+MAX_LOG_LINES = 4000     # output kept in the command window
 
 
 def label(text: str = "", *classes: str, **props) -> Gtk.Label:
@@ -122,6 +125,33 @@ class ConfirmRemoveDialog(_Dialog):
         self._on_confirm()
 
 
+class ConfirmLaunchDialog(_Dialog):
+    """Ask before running an untrusted file, showing exactly which file it is."""
+
+    def __init__(self, parent, name: str, path: str, reason: str, on_confirm):
+        super().__init__(parent, f"Open {name}?")
+        self._on_confirm = on_confirm
+        top = Gtk.Box(spacing=14)
+        top.append(label("⚠️", "big-emoji"))
+        titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER)
+        titles.append(label(f"Open {name}?", "placeholder-title", xalign=0, wrap=True))
+        titles.append(label(reason, "dim", xalign=0, wrap=True, max_width_chars=55))
+        top.append(titles)
+        self.body.append(top)
+        self.body.append(label("File:", "key", xalign=0))
+        self.body.append(label(path, "mono", "command", xalign=0, wrap=True, selectable=True,
+                               wrap_mode=Pango.WrapMode.CHAR))
+        self.body.append(label("Only open files you downloaded on purpose, from a source you "
+                               "trust.", "warning", xalign=0, wrap=True))
+        cancel = self.add_button("Cancel", "soft", self.close)
+        self.confirm = self.add_button("Open anyway", "danger", self._confirm)
+        self.set_focus(cancel)  # never start with the risky button focused
+
+    def _confirm(self):
+        self.close()
+        self._on_confirm()
+
+
 class CommandDialog(_Dialog):
     """Runs one or more Actions in order and streams their output.
 
@@ -134,6 +164,10 @@ class CommandDialog(_Dialog):
         self.set_default_size(640, 420)
         self._on_finished = on_finished
         self._finished = False
+        self._cancelled = False
+        self._proc: subprocess.Popen | None = None
+        self._pending: list[str] = []      # output waiting to be shown
+        self._lock = threading.Lock()
 
         head = Gtk.Box(spacing=10)
         self.spinner = Gtk.Spinner(spinning=True)
@@ -154,11 +188,15 @@ class CommandDialog(_Dialog):
         self.body.set_vexpand(True)
         self.body.append(self.scroller)
 
+        self.cancel_button = self.add_button("Cancel", "soft", self.cancel)
         self.close_button = self.add_button("Close", "cute", self.close)
         self.close_button.set_sensitive(False)
+        self.set_focus(self.cancel_button)  # not the command text, which would get selected
         self.set_deletable(False)
         self.connect("close-request", lambda *_: not self._finished)
 
+        # Output is shown in batches, 10 times a second, instead of once per line.
+        self._flush_source = GLib.timeout_add(100, self._flush)
         threading.Thread(target=self._run_all, args=(actions,), daemon=True).start()
 
     def _on_escape(self, *_):
@@ -166,42 +204,99 @@ class CommandDialog(_Dialog):
             self.close()
         return True
 
+    # ---- running (worker thread)
+
     def _run_all(self, actions: list[Action]) -> None:
         code = 0
         for action in actions:
+            if self._cancelled:
+                code = CANCELLED
+                break
             if len(actions) > 1:
-                GLib.idle_add(self._append, f"$ {action.display()}\n")
+                self._write(f"$ {action.display()}\n")
             code = self._run(action)
             if code != 0:
                 break
+        if self._cancelled and code != 0:
+            code = CANCELLED
         GLib.idle_add(self._done, code)
 
     def _run(self, action: Action) -> int:
         try:
-            proc = subprocess.Popen(action.full_argv(), stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                                    text=True, errors="replace", bufsize=1)
-        except OSError as exc:
-            GLib.idle_add(self._append, f"{exc}\n")
+            argv = action.full_argv()
+            # Its own process group, so Cancel can stop the helpers it starts too
+            # (apt runs dpkg, npm runs node, `sh -c` runs whatever it was given).
+            proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                    stdin=subprocess.DEVNULL, text=True, errors="replace",
+                                    bufsize=1, start_new_session=True)
+        except (OSError, UnsafeCommand) as exc:
+            self._write(f"{exc}\n")
             return -1
+        self._proc = proc
         with proc.stdout:
             for line in proc.stdout:
-                GLib.idle_add(self._append, _ANSI_RE.sub("", line))
-        return proc.wait()
+                self._write(_ANSI_RE.sub("", line))
+        code = proc.wait()
+        self._proc = None
+        return code
 
-    def _append(self, text: str) -> bool:
-        self.buffer.insert(self.buffer.get_end_iter(), text)
-        adj = self.scroller.get_vadjustment()
-        GLib.idle_add(lambda: adj.set_value(adj.get_upper()) and False)
+    def _write(self, text: str) -> None:
+        with self._lock:
+            self._pending.append(text)
+
+    # ---- UI (main thread)
+
+    def _flush(self) -> bool:
+        with self._lock:
+            text, self._pending = "".join(self._pending), []
+        if text:
+            self.buffer.insert(self.buffer.get_end_iter(), text)
+            extra = self.buffer.get_line_count() - MAX_LOG_LINES
+            if extra > 0:  # keep memory bounded on very chatty commands
+                _found, cut = self.buffer.get_iter_at_line(extra)
+                self.buffer.delete(self.buffer.get_start_iter(), cut)
+            adj = self.scroller.get_vadjustment()
+            GLib.idle_add(lambda: adj.set_value(adj.get_upper()) and False)
+        return GLib.SOURCE_CONTINUE if not self._finished else GLib.SOURCE_REMOVE
+
+    def cancel(self) -> None:
+        if self._finished or self._cancelled:
+            return
+        self._cancelled = True
+        self.cancel_button.set_sensitive(False)
+        proc = self._proc
+        try:
+            if proc is not None:
+                os.killpg(proc.pid, signal.SIGTERM)
+                GLib.timeout_add_seconds(5, self._force_stop, proc)
+            self.status.set_label("Stopping…")
+        except PermissionError:
+            # Running as administrator: our user can't stop it, and interrupting a package
+            # manager halfway could leave things broken anyway.
+            self.status.set_label("⏳ This step runs as administrator and will finish on its "
+                                  "own. URPM will skip anything after it.")
+
+    @staticmethod
+    def _force_stop(proc: subprocess.Popen) -> bool:
+        if proc.poll() is None:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except (PermissionError, ProcessLookupError):
+                pass
         return GLib.SOURCE_REMOVE
 
     def _done(self, code: int) -> bool:
+        self._flush()
         self._finished = True
+        if self._flush_source:
+            GLib.source_remove(self._flush_source)
+            self._flush_source = 0
         self.spinner.stop()
         self.spinner.set_visible(False)
         messages = {0: "✅ All done!", PKEXEC_CANCELLED: "🔒 Password prompt was cancelled",
-                    PKEXEC_DENIED: "🔒 Not authorized"}
+                    PKEXEC_DENIED: "🔒 Not authorized", CANCELLED: "✋ Cancelled"}
         self.status.set_label(messages.get(code, f"😿 Something went wrong (exit code {code})"))
+        self.cancel_button.set_visible(False)
         self.close_button.set_sensitive(True)
         self.set_deletable(True)
         self.close_button.grab_focus()
@@ -212,8 +307,14 @@ class CommandDialog(_Dialog):
 
 def can_run(action: Action) -> str | None:
     """Return a reason why the action can't run from the GUI, or None if it can."""
-    if action.root and not which("pkexec"):
-        return "pkexec (polkit) isn't installed, so URPM can't ask for your password"
+    if action.root:
+        if not root_binary("pkexec"):
+            return "pkexec (polkit) isn't installed, so URPM can't ask for your password"
+        try:
+            action.full_argv()
+        except UnsafeCommand as exc:
+            return str(exc)
+        return None
     if not which(action.argv[0]) and not os.path.exists(action.argv[0]):
         return f"{action.argv[0]} isn't installed"
     return None
@@ -257,4 +358,5 @@ def launch(argv: list[str]) -> None:
                      stderr=subprocess.DEVNULL, start_new_session=True)
 
 
-__all__ = ["CommandDialog", "ConfirmRemoveDialog", "can_run", "choose_export_file", "launch"]
+__all__ = ["CommandDialog", "ConfirmLaunchDialog", "ConfirmRemoveDialog", "can_run",
+           "choose_export_file", "launch"]

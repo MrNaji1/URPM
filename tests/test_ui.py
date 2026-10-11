@@ -33,7 +33,8 @@ class FakeSource(Source):
         return [Package("alpha", "1.10", "fake", summary="first letter", size=5_000_000,
                         installed=now),
                 Package("beta", "1.9", "fake", summary="second", size=10, explicit=False),
-                Package("gamma", "10.0", "fake", summary="third", homepage="https://example.org")]
+                Package("gamma", "10.0", "fake", summary="third", homepage="https://example.org"),
+                Package("   ", "1.0", "fake", summary="a nameless package must be skipped")]
 
     def check_updates(self, packages):
         for pkg in packages:
@@ -94,7 +95,7 @@ class WindowTests(unittest.TestCase):
         cls.app.register(None)
         cls.app.do_startup() if cls.app.theme is None else None
         cls.win = appmod.UrpmWindow(cls.app)
-        spin(lambda: cls.win.items and not cls.win._checking_updates)
+        spin(lambda: cls.win.items and not cls.win._loading and not cls.win._checking_updates)
 
     @classmethod
     def tearDownClass(cls):
@@ -252,6 +253,101 @@ class WindowTests(unittest.TestCase):
                                                                         return_value={}):
             window.choose(start)
         window.destroy()
+
+    def test_slow_source_does_not_block_the_others(self):
+        """A package manager that takes a while must not hold back the rest."""
+        from urpm.ui import app as appmod
+
+        class Slow(FakeSource):
+            id, label = "slow", "Slow"
+
+            def list_packages(self):
+                time.sleep(1.5)
+                return [Package("slowpoke", "1", "slow")]
+
+        with mock.patch("urpm.ui.window.available_sources",
+                        return_value=[Slow(), FakeSource()]):
+            win = appmod.UrpmWindow(self.win.get_application())
+            started = time.time()
+            spin(lambda: len(win.items) == 3)
+            self.assertLess(time.time() - started, 1.0, "fast source waited for the slow one")
+            self.assertIn("still loading Slow", win.status.get_label())
+            spin(lambda: not win._loading, timeout=10)
+            self.assertEqual(len(win.items), 4)
+            self.assertNotIn("still loading", win.status.get_label())
+        win.destroy()
+
+    def test_untrusted_app_asks_before_opening(self):
+        """S2: opening something like a downloaded AppImage shows a warning first."""
+        from urpm.ui.window import PackageItem
+        item = PackageItem(Package("Firefox", "1", "fake", ident="/home/u/Downloads/F.AppImage"),
+                           FakeSource())
+        with mock.patch.object(FakeSource, "launch_warning", return_value="downloaded file"), \
+                mock.patch("urpm.ui.window.launch") as launch, \
+                mock.patch("urpm.ui.window.ConfirmLaunchDialog") as dialog:
+            self.win._launch_item(item, ["true"])
+            launch.assert_not_called()                     # nothing ran yet
+            name, path, reason, on_confirm = dialog.call_args.args[1:]
+            self.assertEqual((name, path), ("Firefox", "/home/u/Downloads/F.AppImage"))
+            on_confirm()                                   # the user clicked "Open anyway"
+            launch.assert_called_once_with(["true"])
+
+    def test_unsafe_package_names_are_refused_in_the_ui(self):
+        """S5: a package whose name looks like an option never reaches a dialog."""
+        from urpm.sources.base import UnsafeCommand
+        self.win.selection.set_selected(0)
+        with mock.patch.object(FakeSource, "safe_remove_action",
+                               side_effect=UnsafeCommand("refusing '-rf'")), \
+                mock.patch("urpm.ui.window.ConfirmRemoveDialog") as dialog:
+            self.win._on_remove(None)
+        dialog.assert_not_called()
+        self.assertIn("refusing", self.win.toast_label.get_label())
+
+    def test_running_command_can_be_cancelled(self):
+        """S6: a stuck command can be stopped instead of trapping the user."""
+        from urpm.ui.dialogs import CANCELLED, CommandDialog
+        done = []
+        dialog = CommandDialog(self.win, "Testing", [Action(["sleep", "30"]),
+                                                     Action(["echo", "never"])], done.append)
+        spin(lambda: dialog._proc is not None)
+        started = time.time()
+        dialog.cancel()
+        spin(lambda: done, timeout=8)
+        self.assertLess(time.time() - started, 6)
+        self.assertEqual(done, [False])
+        self.assertIn("Cancelled", dialog.status.get_label())
+        start, end = dialog.buffer.get_bounds()
+        self.assertNotIn("never\n", dialog.buffer.get_text(start, end, False).replace(
+            "$ echo never", ""))
+        self.assertEqual(CANCELLED, -15)
+        dialog.destroy()
+
+    def test_cancel_also_stops_child_processes(self):
+        """S6: package managers start helpers (apt runs dpkg); Cancel must stop those too."""
+        from urpm.ui.dialogs import CommandDialog
+        done = []
+        dialog = CommandDialog(self.win, "Testing",
+                               Action(["sh", "-c", "echo started; sleep 30; echo late"]),
+                               done.append)
+        spin(lambda: dialog._proc is not None)
+        time.sleep(0.3)  # let sh start its sleep child
+        started = time.time()
+        dialog.cancel()
+        spin(lambda: done, timeout=10)
+        self.assertLess(time.time() - started, 6, "Cancel waited for the child process")
+        self.assertIn("Cancelled", dialog.status.get_label())
+        dialog.destroy()
+
+    def test_command_output_is_capped(self):
+        """S6: a very chatty command can't make the window use unbounded memory."""
+        from urpm.ui.dialogs import MAX_LOG_LINES, CommandDialog
+        done = []
+        dialog = CommandDialog(self.win, "Testing", Action(["seq", "1", "20000"]), done.append)
+        spin(lambda: done, timeout=20)
+        self.assertLessEqual(dialog.buffer.get_line_count(), MAX_LOG_LINES + 1)
+        start, end = dialog.buffer.get_bounds()
+        self.assertTrue(dialog.buffer.get_text(start, end, False).rstrip().endswith("20000"))
+        dialog.destroy()
 
     def test_multiple_actions_stop_at_first_failure(self):
         from urpm.ui.dialogs import CommandDialog

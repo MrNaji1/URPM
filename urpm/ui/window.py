@@ -6,7 +6,7 @@ import math
 import threading
 import time
 import zlib
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import gi
 
@@ -16,11 +16,12 @@ from gi.repository import Gdk, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from urpm.sources import (KIND_LABELS, Package, Source, available_sources,  # noqa: E402
                           human_size)
-from urpm.sources.base import version_key  # noqa: E402
+from urpm.sources.base import UnsafeCommand, version_key  # noqa: E402
 from urpm.export import render_export  # noqa: E402
 from urpm.ui import theme  # noqa: E402
 from urpm.ui.settings import SettingsWindow  # noqa: E402
-from urpm.ui.dialogs import (CommandDialog, ConfirmRemoveDialog, can_run,  # noqa: E402
+from urpm.ui.dialogs import (CommandDialog, ConfirmLaunchDialog,  # noqa: E402
+                             ConfirmRemoveDialog, can_run,
                              choose_export_file, launch)
 
 ALL, UPDATES, RECENT = "all", "updates", "recent"
@@ -84,6 +85,11 @@ def ordering(a, b) -> Gtk.Ordering:
     return Gtk.Ordering.EQUAL
 
 
+def accessible_name(widget: Gtk.Widget, name: str) -> None:
+    """Give an icon-only control a name that screen readers can announce."""
+    widget.update_property([Gtk.AccessibleProperty.LABEL], [name])
+
+
 def clear(box: Gtk.Widget) -> None:
     while child := box.get_first_child():
         box.remove(child)
@@ -110,6 +116,11 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self._loading = False
         self._checking_updates = False
         self._generation = 0  # bumps on every reload, so stale update checks are ignored
+        self._load_id = 0     # bumps on every reload, so results from an old one are ignored
+        self._pending: dict[str, str] = {}  # sources still loading: id -> label
+        self._loaded_ids: set[str] = set()
+        self._load_order: list[Source] = []
+        self._keep_selected = None
         self._launcher = None
         self.errors: dict[str, str] = {}
         self._last_checked = None
@@ -152,17 +163,21 @@ class UrpmWindow(Gtk.ApplicationWindow):
         section.append("About URPM", "app.about")
         section.append("Quit", "app.quit")
         menu.append_section(None, section)
-        header.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu,
-                                       tooltip_text="Menu"))
+        menu_button = Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu,
+                                     tooltip_text="Menu")
+        accessible_name(menu_button, "Main menu")
+        header.pack_end(menu_button)
 
         self.theme_button = Gtk.Button(icon_name="applications-graphics-symbolic",
                                        tooltip_text="Themes (Ctrl+,)",
                                        action_name="win.settings")
+        accessible_name(self.theme_button, "Settings and themes")
         header.pack_end(self.theme_button)
 
         self.refresh_button = Gtk.Button(icon_name="view-refresh-symbolic",
                                          tooltip_text="Reload packages (Ctrl+R)",
                                          action_name="win.refresh")
+        accessible_name(self.refresh_button, "Reload packages")
         header.pack_end(self.refresh_button)
 
         self.updates_spinner = Gtk.Spinner(tooltip_text="Checking for updates…", visible=False)
@@ -527,12 +542,13 @@ class UrpmWindow(Gtk.ApplicationWindow):
         if self._loading:
             return
         self._loading = True
+        self._load_id += 1
         self.refresh_button.set_sensitive(False)
         if not self.items:
             self.content.set_visible_child_name("loading")
-        threading.Thread(target=self._load_worker, daemon=True).start()
+        threading.Thread(target=self._load_worker, args=(self._load_id,), daemon=True).start()
 
-    def _load_worker(self) -> None:
+    def _load_worker(self, load_id: int) -> None:
         def load(src: Source):
             try:
                 return src, src.list_packages(), None
@@ -540,28 +556,73 @@ class UrpmWindow(Gtk.ApplicationWindow):
                 return src, [], str(exc)
 
         sources = available_sources()
+        GLib.idle_add(self._on_load_started, load_id, sources)
+        # Hand each package manager's results to the UI as soon as it finishes, so one
+        # slow source (say, a hung snapd) doesn't hold back all the others.
         with ThreadPoolExecutor(max_workers=max(1, len(sources))) as pool:
-            results = list(pool.map(load, sources))
-        GLib.idle_add(self._on_loaded, results)
+            for future in as_completed([pool.submit(load, src) for src in sources]):
+                GLib.idle_add(self._on_source_loaded, load_id, *future.result())
+        GLib.idle_add(self._on_load_finished, load_id)
 
-    def _on_loaded(self, results) -> bool:
-        self._loading = False
+    def _on_load_started(self, load_id: int, sources: list[Source]) -> bool:
+        if load_id != self._load_id:
+            return GLib.SOURCE_REMOVE
         selected = self._selected()
-        selected_key = (selected.source.id, selected.pkg.ident) if selected else None
-
+        self._keep_selected = (selected.source.id, selected.pkg.ident) if selected else None
         self._generation += 1
-        self.errors = {src.id: err for src, _, err in results if err}
-        self.sources = [src for src, pkgs, err in results if pkgs or err]
-        self.items = [PackageItem(pkg, src) for src, pkgs, _ in results for pkg in pkgs]
-        self.max_size = max((i.pkg.size for i in self.items), default=0) or 1
+        self._load_order = sources
+        self._pending = {src.id: src.label for src in sources}
+        self._loaded_ids: set[str] = set()
+        self._update_status()
+        return GLib.SOURCE_REMOVE
 
-        self.store.splice(0, self.store.get_n_items(), self.items)
+    def _on_source_loaded(self, load_id: int, src: Source, pkgs: list[Package],
+                          error: str | None) -> bool:
+        if load_id != self._load_id:
+            return GLib.SOURCE_REMOVE
+        self._pending.pop(src.id, None)
+        self._loaded_ids.add(src.id)
+        if error:
+            self.errors[src.id] = error
+        else:
+            self.errors.pop(src.id, None)
+        # Every package needs a name to be shown, searched and acted on.
+        fresh = [PackageItem(pkg, src) for pkg in pkgs if pkg.name.strip()]
+        self._replace_source_items(src.id, fresh)
+        self.sources = [s for s in self._load_order
+                        if s.id in self.errors or any(i.source is s for i in self.items)]
         self._populate_sidebar()
         self._refresh_view()
-        self.refresh_button.set_sensitive(True)
-        self._reselect(selected_key)
+        if self._keep_selected and self._selected() is None:
+            self._reselect(self._keep_selected, clear_if_missing=False)
+        return GLib.SOURCE_REMOVE
 
-        errors = [f"{src.label}: {err}" for src, _, err in results if err]
+    def _replace_source_items(self, source_id: str, fresh: list[PackageItem]) -> None:
+        """Swap one source's rows in place, leaving every other row (and the selection,
+        when it's elsewhere) untouched."""
+        positions = [n for n, item in enumerate(self.items) if item.source.id == source_id]
+        start = positions[0] if positions else len(self.items)
+        count = len(positions)  # a source's rows are always next to each other
+        self.items[start:start + count] = fresh
+        self.store.splice(start, count, fresh)
+        self.max_size = max((i.pkg.size for i in self.items), default=0) or 1
+
+    def _on_load_finished(self, load_id: int) -> bool:
+        if load_id != self._load_id:
+            return GLib.SOURCE_REMOVE
+        self._loading = False
+        # Drop rows from package managers that have disappeared since the last load.
+        for source_id in {i.source.id for i in self.items} - self._loaded_ids:
+            self._replace_source_items(source_id, [])
+        for source_id in set(self.errors) - self._loaded_ids:
+            del self.errors[source_id]
+        self.refresh_button.set_sensitive(True)
+        self._populate_sidebar()
+        self._refresh_view()
+        self._reselect(self._keep_selected)
+
+        errors = [f"{src.label}: {self.errors[src.id]}" for src in self._load_order
+                  if src.id in self.errors]
         if errors:
             self.show_toast("😿 Couldn't read " + "; ".join(errors))
         elif not self.items:
@@ -569,16 +630,18 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self.check_updates()
         return GLib.SOURCE_REMOVE
 
-    def _reselect(self, key) -> None:
+    def _reselect(self, key, clear_if_missing: bool = True) -> None:
         if key:
             model = self.selection.get_model()
             for pos in range(model.get_n_items()):
                 item = model.get_item(pos)
                 if (item.source.id, item.pkg.ident) == key:
-                    self.selection.set_selected(pos)
+                    if self.selection.get_selected() != pos:
+                        self.selection.set_selected(pos)
                     return
-        self.selection.set_selected(Gtk.INVALID_LIST_POSITION)
-        self.details.set_visible_child_name("empty")
+        if clear_if_missing:
+            self.selection.set_selected(Gtk.INVALID_LIST_POSITION)
+            self.details.set_visible_child_name("empty")
 
     def check_updates(self) -> None:
         if self._checking_updates or not self.items:
@@ -733,6 +796,8 @@ class UrpmWindow(Gtk.ApplicationWindow):
             return
         shown, total = self.filtered.get_n_items(), len(self.items)
         status = f"Showing {shown:,} of {total:,} packages"
+        if self._loading and self._pending:
+            status += " · still loading " + ", ".join(self._pending.values()) + "…"
         if self._last_checked:
             status += " · updates checked at " + time.strftime("%H:%M", time.localtime(
                 self._last_checked))
@@ -956,7 +1021,13 @@ class UrpmWindow(Gtk.ApplicationWindow):
 
     def _on_remove(self, _button) -> None:
         item = self._selected()
-        action = item.source.remove_action(item.pkg) if item else None
+        if not item:
+            return
+        try:
+            action = item.source.safe_remove_action(item.pkg)
+        except UnsafeCommand as exc:
+            self.show_toast(f"🛑 {exc}")
+            return
         if not action:
             return
         pkg = item.pkg
@@ -968,16 +1039,27 @@ class UrpmWindow(Gtk.ApplicationWindow):
 
     def _on_update(self, _button) -> None:
         item = self._selected()
-        action = item.source.update_action(item.pkg) if item else None
-        if action:
-            self._run_action(f"Updating {item.pkg.name}…", action,
+        if not item or not item.pkg.update:
+            return
+        try:
+            actions = item.source.safe_update_actions([item.pkg])
+        except UnsafeCommand as exc:
+            self.show_toast(f"🛑 {exc}")
+            return
+        if actions:
+            self._run_action(f"Updating {item.pkg.name}…", actions,
                              f"✨ Updated {item.pkg.name}")
 
     def _on_update_all(self, _button=None) -> None:
         by_source: dict[Source, list[Package]] = {}
         for item in self._updatable():
             by_source.setdefault(item.source, []).append(item.pkg)
-        actions = [a for src, pkgs in by_source.items() for a in src.update_actions(pkgs)]
+        try:
+            actions = [a for src, pkgs in by_source.items()
+                       for a in src.safe_update_actions(pkgs)]
+        except UnsafeCommand as exc:
+            self.show_toast(f"🛑 {exc}")
+            return
         if not actions:
             self.show_toast("Nothing to update here")
             return
@@ -999,9 +1081,14 @@ class UrpmWindow(Gtk.ApplicationWindow):
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _launch_item(self, item: PackageItem, argv) -> bool:
+    def _launch_item(self, item: PackageItem, argv, confirmed: bool = False) -> bool:
         if not argv:
             self.show_toast(f"{item.pkg.name} isn't an app you can open")
+            return GLib.SOURCE_REMOVE
+        warning = None if confirmed else item.source.launch_warning(item.pkg)
+        if warning:
+            ConfirmLaunchDialog(self, item.pkg.name, item.pkg.ident, warning,
+                                lambda: self._launch_item(item, argv, confirmed=True)).present()
             return GLib.SOURCE_REMOVE
         try:
             launch(argv)
