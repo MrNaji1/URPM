@@ -15,15 +15,16 @@ on your screen, and a URPM window you already have open isn't touched. CI does t
 
 ## 1. Automated tests
 
-**152 tests, 93% code coverage.** GitHub runs all of them on every push (the window tests
+**173 tests, 93% code coverage.** GitHub runs all of them on every push (the window tests
 under Xvfb), fails if coverage drops below 90%, and lints the code with `ruff`.
 
 | File | Tests | What it covers |
 |---|---:|---|
 | `test_sources.py` | 45 | Parsers and helpers for every package manager (no GTK needed) |
 | `test_e2e_sources.py` | 21 | **Every package manager end to end** on a fake system |
-| `test_ui.py` | 44 | The real window, run on a hidden display |
+| `test_ui.py` | 49 | The real window, run on a hidden display |
 | `test_whole_picture.py` | 16 | Cleanup centre, "needed by", icons and duplicates on the fake system |
+| `test_up_to_date.py` | 16 | History logs, security updates, holds, background checks and notifications |
 | `test_app.py` | 11 | Command-line options, saved settings, shared helpers |
 | `test_install.py` | 6 | The launcher and `install.sh` |
 | `test_theme.py` | 6 | Theme colours, readability, theme choice at startup |
@@ -171,6 +172,19 @@ Run through this before a release, on a real desktop.
 - [ ] PKGBUILD on Arch, RPM spec on Fedora/openSUSE *(needs those distros)*
 
 ## 3. Results of the last test rounds
+
+### v2.1.0 (Phase 4: staying up to date)
+
+| Found | Fix |
+|---|---|
+| The new APT history and hold code was placed after a helper function, so Python attached it to the helper and the Debian source had no history at all | The helpers moved above the class; a test now checks every source's history on the fake system |
+| The notification listed libraries first ("libfoo, libbar…"), which means nothing to most people | Apps you installed come first, then security fixes |
+| The background check would have reported the same updates every 6 hours | It remembers what it already told you and only notifies about new ones |
+| The "updates · 96 security" caption was cut off in the stats bar | Shortened to "updates · 🛡 96" |
+| Settings imported GTK without asking for version 4, which printed a warning | Fixed |
+
+On this machine URPM read **1,443 history events**, found **157 updates (96 security)**,
+and the background check ran without loading GTK. A second run stayed silent, as it should.
 
 ### v2.0.0 (Phase 3: the whole picture)
 

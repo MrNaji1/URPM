@@ -72,7 +72,8 @@ class DebianTests(FakeSystemTest):
         self.assertIn("Dpkg::Options::=--force-confold", update.argv)
         self.assertEqual(update.display(), "sudo apt install --only-upgrade firefox")
         self.assertEqual(src.safe_remove_action(pkgs["7zip"]).argv, ["apt-get", "remove", "-y", "7zip"])
-        self.assert_ran_only("apt-mark showmanual", "dpkg --print-architecture", "dpkg-query -W",
+        self.assert_ran_only("apt-mark showmanual", "apt-mark showhold", "dpkg --print-architecture",
+                             "dpkg-query -W",
                              "dpkg-query -s", "dpkg-query -L", "apt-get -s", "apt list")
 
     def test_dpkg_tools_without_a_dpkg_database(self):
@@ -97,7 +98,8 @@ class FedoraTests(FakeSystemTest):
         self.assertEqual(gimp.update, "2.10.38-2.fc40")  # epoch dropped
         self.assertEqual(src.update_action(gimp).display(), "sudo dnf upgrade gimp")
         self.assertEqual(src.remove_action(gimp).argv, ["dnf", "remove", "-y", "gimp"])
-        self.assert_ran_only("rpm -qa", "rpm -qi", "rpm -ql", "dnf repoquery")
+        self.assert_ran_only("rpm -qa", "rpm -qi", "rpm -ql", "dnf repoquery", "dnf versionlock",
+                             "dnf updateinfo")
 
     def test_no_rpm_database(self):
         os.rmdir(f"{self.root}/rpmdb")
@@ -139,7 +141,8 @@ class ArchTests(FakeSystemTest):
         self.assertEqual(firefox.update, "132.0-1")
         self.assertIsNone(src.update_action(firefox))       # no partial upgrades on Arch
         self.assertEqual(src.remove_action(firefox).display(), "sudo pacman -Rs firefox")
-        self.assert_ran_only("pacman -Qi", "pacman -Qlq", "pacman -Rs", "checkupdates")
+        self.assert_ran_only("pacman -Qi", "pacman -Qlq", "pacman -Rs", "checkupdates",
+                             "arch-audit -uq")
         self.assertTrue(all("--print" in call for call in self.fake.calls()
                             if call[:2] == ["pacman", "-Rs"]))
 
@@ -237,7 +240,7 @@ class FlatpakTests(FakeSystemTest):
         self.assertEqual(src.update_action(notes).display(),
                          "flatpak update --system org.example.Notes/x86_64/stable")
         self.assertFalse(src.remove_action(notes).root)    # Flatpak asks for itself
-        self.assert_ran_only("flatpak list", "flatpak info", "flatpak remote-ls")
+        self.assert_ran_only("flatpak list", "flatpak info", "flatpak remote-ls", "flatpak mask")
 
 
 class SnapTests(FakeSystemTest):
@@ -295,7 +298,7 @@ class BrewTests(FakeSystemTest):
         self.assertTrue(src.files(gh)[0].endswith("/Cellar/gh/2.57.0/bin/gh"))
         self.assertEqual(src.update_action(gh).argv, ["brew", "upgrade", "gh"])
         self.assertEqual(src.remove_action(gh).argv, ["brew", "uninstall", "gh"])
-        self.assert_ran_only("brew info", "brew --cellar")
+        self.assert_ran_only("brew info", "brew --cellar", "brew list")
 
 
 class PipxTests(FakeSystemTest):

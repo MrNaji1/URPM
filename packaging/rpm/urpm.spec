@@ -1,7 +1,7 @@
 # Fedora, RHEL, Rocky, AlmaLinux, CentOS Stream, openSUSE, Mageia…
 #   rpmbuild -ba urpm.spec   (after: spectool -g -R urpm.spec)
 Name:           urpm
-Version:        2.0.0
+Version:        2.1.0
 Release:        1%{?dist}
 Summary:        Cute GTK app that shows every package installed on your computer
 License:        MIT
@@ -42,6 +42,9 @@ make install DESTDIR=%{buildroot} PREFIX=%{_prefix}
 %{_datadir}/metainfo/io.github.urpm.metainfo.xml
 
 %changelog
+* Sun Oct 11 2026 MrNaji1 - 2.1.0-1
+- Install history, highlighted security updates, holds and background update checks
+
 * Sun Oct 11 2026 MrNaji1 - 2.0.0-1
 - Cleanup centre, duplicate finder, "needed by" and real app icons
 

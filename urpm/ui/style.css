@@ -363,6 +363,27 @@ label.tool-size { font-size: 1.3em; font-weight: 900; color: @urpm_accent; }
 .copy-row button.soft { background: @urpm_surface; }
 .copy-row button.soft:hover { background: @urpm_selected; }
 
+.history-row {
+  background: @urpm_surface;
+  border: 1px solid @urpm_border;
+  border-radius: 14px;
+  padding: 8px 12px;
+}
+.chips button.chip {
+  border-radius: 999px;
+  padding: 4px 12px;
+  background: @urpm_surface;
+  color: @urpm_fg;
+  border: 1px solid @urpm_border;
+  box-shadow: none;
+  font-weight: 700;
+}
+.chips button.chip:checked { background: @urpm_accent; color: @urpm_accent_fg; border-color: @urpm_accent; }
+
+/* security updates and held packages */
+label.pill-security { background: @urpm_danger; color: @urpm_danger_fg; font-size: 0.75em; padding: 0 8px; }
+label.pill-held { background: @urpm_chip; color: @urpm_dim; font-size: 0.75em; padding: 0 8px; }
+
 /* ---------- settings ---------- */
 
 label.settings-heading {

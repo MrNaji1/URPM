@@ -32,6 +32,8 @@ class Package:
     extra: dict[str, str] = field(default_factory=dict)  # source-specific bits
     update: str = ""                # newer version available, filled in by check_updates()
     icon: str = ""                  # icon name or file, from the package's desktop entry
+    security: bool = False          # the pending update fixes a security problem
+    held: bool = False              # kept at its current version; updates skip it
 
     def __post_init__(self):
         if not self.ident:
@@ -163,6 +165,17 @@ class Source:
         return 0
 
     def launch_argv(self, pkg: Package) -> list[str] | None:
+        return None
+
+    def history(self) -> list:
+        """What was installed, updated or removed, newest first (urpm.history.Event)."""
+        return []
+
+    def hold_action(self, pkg: Package) -> Action | None:
+        """Keep pkg at its current version, or None if this source can't."""
+        return None
+
+    def unhold_action(self, pkg: Package) -> Action | None:
         return None
 
     def required_by(self, pkg: Package) -> list[str] | None:

@@ -124,3 +124,8 @@ class SnapSource(Source):
             self.label, size, [f"{name} (revision {rev})" for name, rev in old],
             [Action(["snap", "remove", name, f"--revision={rev}"], root=True)
              for name, rev in old])]
+
+    def history(self) -> list:
+        from urpm import history
+        return history.newest_first(history.parse_snap_changes(
+            run("snap", "changes", "--abs-time", timeout=60)))

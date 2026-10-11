@@ -318,8 +318,16 @@ class PackageTable(Gtk.Box):
     def _bind_version(box, item):
         pkg = item.pkg
         box.version.set_label(pkg.version)
-        box.update.set_label(f"↑ {pkg.update}")
-        box.update.set_visible(bool(pkg.update))
+        if pkg.held:
+            box.update.set_label("📌 held" + (f" · {pkg.update}" if pkg.update else ""))
+            box.update.set_css_classes(["pill", "pill-held"])
+        elif pkg.security:
+            box.update.set_label(f"🛡 {pkg.update}")
+            box.update.set_css_classes(["pill", "pill-security"])
+        else:
+            box.update.set_label(f"↑ {pkg.update}")
+            box.update.set_css_classes(["pill", "pill-update"])
+        box.update.set_visible(bool(pkg.update) or pkg.held)
 
     @staticmethod
     def _setup_source():

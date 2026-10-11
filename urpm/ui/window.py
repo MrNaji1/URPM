@@ -20,7 +20,7 @@ from urpm import cleanup, icons  # noqa: E402
 from urpm.duplicates import find_duplicates  # noqa: E402
 from urpm.export import render_export  # noqa: E402
 from urpm.sources import Package, Source, available_sources, human_size  # noqa: E402
-from urpm.sources.base import UnsafeCommand  # noqa: E402
+from urpm.sources.base import UnsafeCommand, check_targets  # noqa: E402
 from urpm.ui import theme  # noqa: E402
 from urpm.ui.cleanup_page import CleanupPage  # noqa: E402
 from urpm.ui.details import DetailsPanel  # noqa: E402
@@ -28,9 +28,10 @@ from urpm.ui.dialogs import (CommandDialog, ConfirmCleanupDialog,  # noqa: E402
                              ConfirmLaunchDialog, ConfirmRemoveDialog, can_run,
                              choose_export_file, launch)
 from urpm.ui.duplicates_page import DuplicatesPage  # noqa: E402
+from urpm.ui.history_page import HistoryPage  # noqa: E402
 from urpm.ui.settings import SettingsWindow  # noqa: E402
-from urpm.ui.sidebar import (ALL, CLEANUP, DUPLICATES, RECENT, TOOL_VIEWS,  # noqa: E402
-                             UPDATES, Sidebar, recent_cutoff)
+from urpm.ui.sidebar import (ALL, CLEANUP, DUPLICATES, HISTORY, RECENT,  # noqa: E402
+                             TOOL_VIEWS, UPDATES, Sidebar, recent_cutoff)
 from urpm.ui.table import PackageItem, PackageTable  # noqa: E402
 from urpm.ui.widgets import accessible_name, label  # noqa: E402
 
@@ -69,6 +70,8 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self._scanning = False
         self._scanned = False
         self.duplicates: list = []
+        self.history: list = []
+        self._history_loaded = False
         self._duplicates_for = -1  # the package list version they were found for
 
         self.sidebar = Sidebar(self._on_view_selected, self._on_explicit_toggled)
@@ -78,9 +81,10 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self.packages.shown.connect("items-changed", lambda *_: self._update_status())
         self.details = DetailsPanel(on_open=self._on_open, on_update=self._on_update,
                                     on_remove=self._on_remove, on_copy_command=self._on_copy_remove,
-                                    on_copy_name=self._on_copy_name)
+                                    on_copy_name=self._on_copy_name, on_hold=self._on_hold)
         self.cleanup_page = CleanupPage(self._review_cleanup, self.scan_cleanups)
         self.duplicates_page = DuplicatesPage(self._remove_item, self._show_item)
+        self.history_page = HistoryPage(self._show_event_package)
         self._build_header()
         self._build_body()
         self._install_actions()
@@ -220,6 +224,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self.content.add_named(empty, "empty")
         self.content.add_named(self.cleanup_page, CLEANUP)
         self.content.add_named(self.duplicates_page, DUPLICATES)
+        self.content.add_named(self.history_page, HISTORY)
         main.append(self.content)
 
         self.status = label("", "status", xalign=0)
@@ -346,7 +351,41 @@ class UrpmWindow(Gtk.ApplicationWindow):
             self.show_toast("No package managers found on this system")
         self.check_updates()
         self.scan_cleanups()
+        self.load_history()
         return GLib.SOURCE_REMOVE
+
+    # ---------------------------------------------------------------- history
+
+    def load_history(self) -> None:
+        sources = list(self.sources)
+
+        def worker():
+            events = []
+            for src in sources:
+                try:
+                    events.extend(src.history())
+                except Exception:  # unreadable or rotated-away logs: show what we can
+                    continue
+            GLib.idle_add(self._on_history_loaded, events)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_history_loaded(self, events) -> bool:
+        self.history = events
+        self._history_loaded = True
+        self.history_page.set_hide_automatic(self.sidebar.only_explicit)
+        self.history_page.set_events(events)
+        self._refresh_view(rebuild_sidebar=True)
+        return GLib.SOURCE_REMOVE
+
+    def _show_event_package(self, event) -> None:
+        """Jump from a history entry to the package, if it's still installed."""
+        match = next((i for i in self.items if i.pkg.name.split(":")[0] == event.name
+                      and i.source.label.startswith(event.source)), None)
+        if match is None:
+            self.show_toast(f"{event.name} isn't installed any more")
+            return
+        self._show_item(match)
 
     # ---------------------------------------------------------------- cleanup centre
 
@@ -381,7 +420,8 @@ class UrpmWindow(Gtk.ApplicationWindow):
         else:
             total = sum(c.size for c in self.cleanups)
             cleanup_badge = human_size(total) if total else ("0" if not self.cleanups else "✓")
-        return {CLEANUP: cleanup_badge, DUPLICATES: f"{len(self.duplicates):,}"}
+        history = f"{len(self.history):,}" if self._history_loaded else "…"
+        return {CLEANUP: cleanup_badge, DUPLICATES: f"{len(self.duplicates):,}", HISTORY: history}
 
     def _review_cleanup(self, item) -> None:
         try:
@@ -483,17 +523,18 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self._update_status()
 
     def _updatable(self) -> list[PackageItem]:
-        """Packages in the current view that have an update we can install."""
-        return [i for i in self.items if i.pkg.update and self._in_view(i)
+        """Packages in the current view that have an update we can install (not held)."""
+        return [i for i in self.items if i.pkg.update and not i.pkg.held and self._in_view(i)
                 and i.source.update_action(i.pkg) is not None]
 
     def _update_banner(self) -> None:
         ready = self._updatable() if self.view == UPDATES else []
         if ready:
             sources = sorted({i.source.label for i in ready})
+            security = sum(1 for i in ready if i.pkg.security)
             self.banner_label.set_label(
                 f"✨ {len(ready)} update{'s' if len(ready) != 1 else ''} ready from "
-                f"{', '.join(sources)}")
+                f"{', '.join(sources)}" + (f" · 🛡 {security} security" if security else ""))
         self.banner.set_reveal_child(bool(ready))
 
     def _update_stats(self) -> None:
@@ -502,7 +543,10 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self.stat_labels["size"][0].set_label(human_size(sum(i.pkg.size for i in scope)))
         self.stat_labels["mine"][0].set_label(f"{sum(1 for i in scope if i.pkg.explicit):,}")
         updates = sum(1 for i in scope if i.pkg.update)
+        security = sum(1 for i in scope if i.pkg.update and i.pkg.security)
         self.stat_labels["updates"][0].set_label("…" if self._checking_updates else f"{updates:,}")
+        self.stat_labels["updates"][1].set_label(f"updates · 🛡 {security:,}" if security
+                                                 else "updates available")
 
     def _update_status(self) -> None:
         if self.view in TOOL_VIEWS:
@@ -555,13 +599,15 @@ class UrpmWindow(Gtk.ApplicationWindow):
 
     def _on_search_changed(self, entry) -> None:
         # Stats describe the whole view and ignore the search box, so skip them here.
+        self.history_page.set_query(entry.get_text())
         self.packages.set_search(entry.get_text())
         self._update_status()
 
     def _on_view_selected(self, _view: str) -> None:
         self._refresh_view()
 
-    def _on_explicit_toggled(self, _active: bool) -> None:
+    def _on_explicit_toggled(self, active: bool) -> None:
+        self.history_page.set_hide_automatic(active)  # "Just mine" hides dependency installs
         self._refresh_view(rebuild_sidebar=True)
 
     def _on_selection_changed(self, *_) -> None:
@@ -613,9 +659,29 @@ class UrpmWindow(Gtk.ApplicationWindow):
 
         ConfirmRemoveDialog(self, pkg, item.source, action, confirmed).present()
 
+    def _on_hold(self) -> None:
+        item = self._selected()
+        if not item:
+            return
+        pkg, src = item.pkg, item.source
+        action = src.unhold_action(pkg) if pkg.held else src.hold_action(pkg)
+        if not action:
+            return
+        try:
+            check_targets(action, [pkg])
+        except UnsafeCommand as exc:
+            self.show_toast(f"🛑 {exc}")
+            return
+        if pkg.held:
+            self._run_action(f"Allowing updates for {pkg.name}…", action,
+                             f"📌 {pkg.name} will be updated again")
+        else:
+            self._run_action(f"Keeping {pkg.name} at {pkg.version}…", action,
+                             f"📌 {pkg.name} stays at {pkg.version}")
+
     def _on_update(self) -> None:
         item = self._selected()
-        if not item or not item.pkg.update:
+        if not item or not item.pkg.update or item.pkg.held:
             return
         try:
             actions = item.source.safe_update_actions([item.pkg])

@@ -20,7 +20,8 @@ MAX_NEEDED_BY_SHOWN = 40
 class DetailsPanel(Gtk.Stack):
     """Shows one package. The buttons call back into the window, which owns the actions."""
 
-    def __init__(self, on_open, on_update, on_remove, on_copy_command, on_copy_name):
+    def __init__(self, on_open, on_update, on_remove, on_copy_command, on_copy_name,
+                 on_hold=None):
         super().__init__(css_classes=["details"], width_request=350, hexpand=False,
                          transition_type=Gtk.StackTransitionType.CROSSFADE)
         self.item = None
@@ -69,6 +70,9 @@ class DetailsPanel(Gtk.Stack):
         self._button(copies, "Copy uninstall command", "soft", on_copy_command, small=True)
         self._button(copies, "Copy name", "soft", on_copy_name, small=True)
         inner.append(copies)
+        self.hold_button = self._button(inner, "📌 Keep this version", "soft",
+                                        lambda: on_hold and on_hold(), small=True)
+        self.hold_button.set_halign(Gtk.Align.START)
 
         self.info = Gtk.Grid(column_spacing=14, row_spacing=6, margin_top=6)
         inner.append(self.info)
@@ -138,7 +142,11 @@ class DetailsPanel(Gtk.Stack):
         if src.tracks_explicit:
             self.badges.append(label("💖 yours", "pill", "pill-mine") if pkg.explicit
                                else label("🔗 dependency", "pill", "pill-dep"))
-        if pkg.update:
+        if pkg.held:
+            self.badges.append(label("📌 held", "pill", "pill-held"))
+        if pkg.update and pkg.security:
+            self.badges.append(label("🛡 security update", "pill", "pill-security"))
+        elif pkg.update:
             self.badges.append(label("✨ update", "pill", "pill-update"))
 
         rows = [("Size", human_size(pkg.size)), ("Section", pkg.section),
@@ -153,9 +161,13 @@ class DetailsPanel(Gtk.Stack):
             self.info.attach(link, 1, len(rows), 1, 1)
 
         remove = src.remove_action(pkg)
-        update = src.update_action(pkg)
+        update = None if pkg.held else src.update_action(pkg)  # held: updates are skipped
         self.remove_button.set_visible(remove is not None)
         self.update_button.set_visible(update is not None)
+        hold = src.unhold_action(pkg) if pkg.held else src.hold_action(pkg)
+        self.hold_button.set_visible(hold is not None)
+        self.hold_button.set_label("📌 Allow updates again" if pkg.held else "📌 Keep this version")
+        self.hold_button.set_tooltip_text(hold.display() if hold else None)
         self.update_button.set_tooltip_text(update.display() if update else None)
         self.remove_button.set_tooltip_text(remove.display() if remove else None)
         self.launcher = None

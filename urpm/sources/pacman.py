@@ -8,6 +8,7 @@ import time
 from .base import (Cleanup, SYSTEM, Action, Details, Package, Source, apply_updates, desktop_launcher,
                    parse_fields, parse_size, run, which)
 
+PACMAN_LOG = "/var/log/pacman.log"
 INFO_FIELDS = ("Architecture", "Licenses", "Groups", "Packager", "Depends On",
                "Optional Deps", "Required By")
 DATE_FORMATS = ("%a %d %b %Y %I:%M:%S %p", "%a %d %b %Y %H:%M:%S", "%a %b %d %H:%M:%S %Y")
@@ -98,7 +99,12 @@ class PacmanSource(Source):
         if not which("checkupdates"):  # from pacman-contrib; safe, uses a temp db
             return 0
         updates = parse_checkupdates(run("checkupdates", timeout=180, ok_codes=(0, 2)))
-        return apply_updates(packages, updates)
+        found = apply_updates(packages, updates)
+        if which("arch-audit"):  # lists upgradable packages with known vulnerabilities
+            vulnerable = set(run("arch-audit", "-uq", timeout=120, ok_codes=(0, 1)).split())
+            for pkg in packages:
+                pkg.security = bool(pkg.update) and pkg.name in vulnerable
+        return found
 
     def required_by(self, pkg: Package) -> list[str] | None:
         parsed = parse_pacman_info(run("pacman", "-Qi", pkg.name))
@@ -127,3 +133,7 @@ class PacmanSource(Source):
                     self.label, saved, ["/var/cache/pacman/pkg"],
                     [Action(["paccache", "-rk1"], root=True)], kind="cache"))
         return found
+
+    def history(self) -> list:
+        from urpm import history
+        return history.from_files([PACMAN_LOG], history.parse_pacman_log)

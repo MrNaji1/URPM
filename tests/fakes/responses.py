@@ -11,6 +11,7 @@ T = "\t"
 RESPONSES = [
     # ------------------------------------------------------------------ Debian / APT
     ("apt-mark", "showmanual", "firefox\n7zip\nbind9-libs\n", 0),
+    ("apt-mark", "showhold", "7zip\n", 0),
     ("dpkg", "--print-architecture", "amd64\n", 0),
     ("dpkg-query", "-W -f *", "".join(T.join(row) + "\n" for row in [
         ["firefox", "131.0+build1", "260000", "web", "ii ", "https://www.mozilla.org/",
@@ -47,7 +48,7 @@ Description: Safe and easy web browser from Mozilla
     ("dpkg-query", "-S *", "firefox: {root}/usr/share/applications/firefox.desktop\n"
                            "dpkg-query: no path found matching pattern x\n", 1),
     ("apt", "list --upgradable",
-     "Listing...\nfirefox/noble-updates 132.0+build2 amd64 [upgradable from: 131.0+build1]\n", 0),
+     "Listing...\nfirefox/noble-updates,noble-security 132.0+build2 amd64 [upgradable from: 131.0+build1]\n", 0),
 
     # ------------------------------------------------------------------ Fedora / RPM + DNF
     ("rpm", "-qa --queryformat *", "".join(T.join(row) + "\n" for row in [
@@ -72,6 +73,10 @@ editing program.
      "gimp-data\ngimp-libs\ngimp\n", 0),
     ("dnf", "repoquery --upgrades *", "gimp 2:2.10.38-2.fc40\n", 0),
     ("dnf", "repoquery --unneeded *", "bash\nold-lib\nold-lib\n", 0),
+    ("dnf", "versionlock list -q", "Last metadata expiration check: 0:10:00 ago.\n"
+                                   "bash-0:5.2.26-3.fc40.*\n", 0),
+    ("dnf", "updateinfo list --security -q",
+     "FEDORA-2024-1a2b Important/Sec. gimp-2:2.10.38-2.fc40.x86_64\n", 100),
     ("dnf", "repoquery --installed --whatrequires gimp --qf *", "gimp-plugin-x\ngimp\n", 0),
     ("zypper", "-n rm --dry-run gimp", "Loading repository data...\n\n"
      "The following 2 packages are going to be REMOVED:\n  gimp gimp-plugin-aa\n\n"
@@ -111,6 +116,7 @@ Install Reason  : Explicitly installed
     ("checkupdates", "", "firefox 131.0-1 -> 132.0-1\n", 0),
     ("pacman", "-Qi bash", "Name            : bash\nRequired By     : firefox  readline\n", 0),
     ("pacman", "-Qdtq", "bash\n", 0),
+    ("arch-audit", "-uq", "firefox\n", 0),
     ("paccache", "-dk1", "==> finished dry run: 3 candidates (disk space saved: 120.36 MiB)\n", 0),
 
     # ------------------------------------------------------------------ Void / XBPS
@@ -155,6 +161,11 @@ Notes - Write things down
       Origin: flathub
      License: GPL-3.0
 """, 0),
+    ("flatpak", "mask --system", "org.example.Notes\n", 0),
+    ("flatpak", "history --columns=*",
+     "Oct  1 09:00:00\tdeploy install\torg.example.Notes\tstable\tsystem\n"
+     "Oct  2 10:00:00\tdeploy update\torg.example.Notes\tstable\tsystem\n"
+     "Oct  3 11:00:00\tuninstall\torg.old.Removed\tstable\tsystem\n", 0),
     ("flatpak", "remote-ls --updates --columns=ref,version",
      "app/org.example.Notes/x86_64/stable\t2.2\n", 0),
 
@@ -172,6 +183,11 @@ Notes - Write things down
      "core22   20240111  1122   latest/stable  canonical** base\n"
      "firefox  130.0-1   4800   latest/stable  mozilla**   disabled\n"
      "firefox  131.0-1   4955   latest/stable  mozilla**   -\n", 0),
+    ("snap", "changes --abs-time",
+     "ID  Status  Spawn                 Ready                 Summary\n"
+     "1   Done    2026-09-01T10:00:00Z  2026-09-01T10:01:00Z  Install \"firefox\" snap\n"
+     "2   Done    2026-09-20T03:00:00Z  2026-09-20T03:02:00Z  Auto-refresh snaps \"firefox\", \"core22\"\n"
+     "3   Error   2026-09-21T03:00:00Z  2026-09-21T03:02:00Z  Remove \"broken\" snap\n", 0),
     ("snap", "refresh --list", "Name     Version  Rev   Size   Publisher  Notes\n"
                                "firefox  132.0-1  5001  280MB  mozilla**  -\n", 0),
 
@@ -195,6 +211,7 @@ Notes - Write things down
          "installed": [{"version": "3.3.2", "installed_on_request": False}]},
     ], "casks": []}), 0),
     ("brew", "--cellar", "{root}/Cellar\n", 0),
+    ("brew", "list --pinned", "openssl@3\n", 0),
 
     # ------------------------------------------------------------------ pipx
     ("pipx", "list --json", json.dumps({"venvs": {"black": {"metadata": {

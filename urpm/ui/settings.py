@@ -1,11 +1,17 @@
-"""The Settings window. Today it has one section, Appearance, with the theme picker."""
+"""The Settings window: Appearance (theme picker) and Updates (background checks)."""
 
 from __future__ import annotations
 
-from gi.repository import Gtk
+import threading
 
-from urpm.ui.theme import THEMES, ThemeDef
-from urpm.ui.widgets import label
+import gi
+
+gi.require_version("Gtk", "4.0")
+from gi.repository import GLib, Gtk  # noqa: E402
+
+from urpm import schedule  # noqa: E402
+from urpm.ui.theme import THEMES, ThemeDef  # noqa: E402
+from urpm.ui.widgets import label  # noqa: E402
 
 
 def theme_preview(theme: ThemeDef) -> Gtk.Widget:
@@ -46,6 +52,7 @@ class SettingsWindow(Gtk.Window):
         for i, item in enumerate(THEMES.values()):
             grid.attach(self._card(item), i % 3, i // 3, 1, 1)
         body.append(grid)
+        body.append(self._updates_section())
 
         close = Gtk.Button(label="Done", css_classes=["cute"], halign=Gtk.Align.END,
                            margin_top=6)
@@ -58,6 +65,59 @@ class SettingsWindow(Gtk.Window):
                                              Gtk.CallbackAction.new(lambda *_: self.close() or True)))
         self.add_controller(escape)
         self._sync()
+
+    def _updates_section(self) -> Gtk.Widget:
+        section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin_top=8)
+        section.append(label("UPDATES", "settings-heading", xalign=0))
+        card = Gtk.Box(spacing=12, css_classes=["toggle-card"])
+        text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
+        text.append(label("Check for updates in the background", "title", xalign=0))
+        text.append(label("Every 6 hours, a quick check that shows a notification when new "
+                          "updates appear. URPM itself doesn't stay open.", "dim", "small",
+                          xalign=0, wrap=True, max_width_chars=60))
+        card.append(text)
+        self.background_switch = Gtk.Switch(valign=Gtk.Align.CENTER,
+                                            active=schedule.is_enabled())
+        self.background_switch.update_property([Gtk.AccessibleProperty.LABEL],
+                                               ["Check for updates in the background"])
+        self._switch_handler = self.background_switch.connect("notify::active",
+                                                              self._on_background_toggled)
+        card.append(self.background_switch)
+        section.append(card)
+        self.background_status = label("", "dim", "small", xalign=0, wrap=True, visible=False)
+        section.append(self.background_status)
+        return section
+
+    def _on_background_toggled(self, switch, _pspec) -> None:
+        enable = switch.get_active()
+        switch.set_sensitive(False)
+
+        def worker():
+            try:
+                how = schedule.enable() if enable else (schedule.disable() or "off")
+                error = None
+            except Exception as exc:  # e.g. systemctl refused
+                how, error = None, str(exc)
+            GLib.idle_add(self._background_done, enable, how, error)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _background_done(self, enable: bool, how: str | None, error: str | None) -> bool:
+        switch = self.background_switch
+        switch.set_sensitive(True)
+        if error:
+            with switch.handler_block(self._switch_handler):  # put it back, quietly
+                switch.set_active(not enable)
+            message = f"😿 Couldn't change it: {error}"
+        elif how == "systemd":
+            message = "✅ On: checks 15 minutes after you log in, then every 6 hours."
+        elif how == "autostart":
+            message = "✅ On: checks 10 minutes after you log in."
+        else:
+            message = "Background checks are off."
+        self.background_status.set_label(message)
+        self.background_status.set_visible(True)
+        return GLib.SOURCE_REMOVE
 
     def _card(self, item: ThemeDef) -> Gtk.Button:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)

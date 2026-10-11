@@ -65,6 +65,7 @@ HELP = f"""URPM {__version__} — see every package installed on your computer
 usage: urpm [options]
 
   --version             print the version and exit
+  --check-updates       check for updates once and notify about new ones (no window)
   --install-desktop     add URPM to your app menu (for pip / pipx installs)
   --uninstall-desktop   remove it from your app menu again
   -h, --help            show this help

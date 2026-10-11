@@ -39,8 +39,10 @@ class BrewSource(Source):
     def list_packages(self) -> list[Package]:
         packages = parse_brew_info(run("brew", "info", "--json=v2", "--installed", timeout=180))
         cellar = run("brew", "--cellar").strip()
+        pinned = set(run("brew", "list", "--pinned").split())
         for pkg in packages:
             pkg.size = dir_size(os.path.join(cellar, pkg.name))
+            pkg.held = pkg.name in pinned
         return packages
 
     def files(self, pkg: Package) -> list[str]:
@@ -56,3 +58,9 @@ class BrewSource(Source):
     def check_updates(self, packages: list[Package]) -> int:
         # `brew info` already reports "outdated", so this is filled in while listing.
         return sum(1 for pkg in packages if pkg.update)
+
+    def hold_action(self, pkg: Package) -> Action:
+        return Action(["brew", "pin", pkg.name])
+
+    def unhold_action(self, pkg: Package) -> Action:
+        return Action(["brew", "unpin", pkg.name])

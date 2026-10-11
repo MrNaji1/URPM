@@ -40,7 +40,22 @@ class FakeSource(Source):
         for pkg in packages:
             if pkg.name == "gamma":
                 pkg.update = "3.1"
+                pkg.security = True
         return 1
+
+    def history(self):
+        from urpm.history import Event
+        now = time.time()
+        return [Event(now - 10, "removed", "gone", "1.0", source="Fake"),
+                Event(now - 50, "installed", "libdep", "1.0", source="Fake", automatic=True),
+                Event(now - 100, "installed", "alpha", "1.10", source="Fake"),
+                Event(now - 3 * 86400, "updated", "gamma", "10.0", "9.0", "Fake")]
+
+    def hold_action(self, pkg):
+        return Action(["true", "hold", pkg.name])
+
+    def unhold_action(self, pkg):
+        return Action(["true", "unhold", pkg.name])
 
     def details(self, pkg):
         return Details(description=f"All about {pkg.name}", fields=[("Key", "Value")])
@@ -108,7 +123,7 @@ class WindowTests(unittest.TestCase):
         cls.app.do_startup() if cls.app.theme is None else None
         cls.win = appmod.UrpmWindow(cls.app)
         spin(lambda: cls.win.items and not cls.win._loading and not cls.win._checking_updates
-             and cls.win._scanned)
+             and cls.win._scanned and cls.win._history_loaded)
 
     @classmethod
     def tearDownClass(cls):
@@ -157,7 +172,7 @@ class WindowTests(unittest.TestCase):
             ids.append(getattr(row, "view_id", None))
             row = row.get_next_sibling()
         self.assertEqual([i for i in ids if i], ["all", "updates", "recent", "cleanup",
-                                                 "duplicates", "fake", "broken"])
+                                                 "duplicates", "history", "fake", "broken"])
 
     def sidebar_rows(self):
         rows, row = {}, self.win.sidebar.source_list.get_first_child()
@@ -602,12 +617,10 @@ class WindowTests(unittest.TestCase):
         self.assertEqual(confirmed, [True])
 
     def labels_in(self, widget):
-        stack, found = [widget], []
-        while stack:
-            current = stack.pop()
-            if isinstance(current, Gtk.Label):
-                found.append(current)
-            stack.extend(self.children(current))
+        """Every label inside widget, in the order they appear on screen."""
+        found = [widget] if isinstance(widget, Gtk.Label) else []
+        for child in self.children(widget):
+            found.extend(self.labels_in(child))
         return found
 
     def test_needed_by_in_details(self):
@@ -680,6 +693,109 @@ class WindowTests(unittest.TestCase):
             self.assertTrue(self.win.details.icon.get_visible())
             self.assertFalse(self.win.details.avatar.get_visible())
             alpha.pkg.icon = ""
+
+    def test_history_page(self):
+        self.assertEqual(self.sidebar_rows()["history"][0][-1], "4")
+        self.win.view = "history"
+        self.win._refresh_view()
+        self.assertEqual(self.win.content.get_visible_child_name(), "history")
+        page = self.win.history_page
+
+        def shown():
+            return [w.get_label() for w in self.labels_in(page.list)
+                    if "pkg-name" in w.get_css_classes()]
+        self.assertEqual(page.title.get_label(), "4 changes")
+        self.assertEqual(shown(), ["gone", "libdep", "alpha", "gamma"])        # newest first
+        headings = [w.get_label() for w in self.labels_in(page.list)
+                    if "section-heading" in w.get_css_classes()]
+        self.assertEqual(headings[0], "TODAY")
+        page.chips["removed"].set_active(True)
+        self.assertEqual(shown(), ["gone"])
+        page.chips["updated"].set_active(True)
+        self.assertEqual(shown(), ["gamma"])
+        page.chips["all"].set_active(True)
+        self.win.sidebar.explicit_switch.set_active(True)                     # "Just mine"
+        self.assertNotIn("libdep", shown())
+        self.win.sidebar.explicit_switch.set_active(False)
+        self.win.search.set_text("alp")
+        self.win._on_search_changed(self.win.search)
+        self.assertEqual(shown(), ["alpha"])
+        self.win.search.set_text("")
+        self.win._on_search_changed(self.win.search)
+        events = {e.name: e for e in page.events}
+        self.win._show_event_package(events["gone"])
+        self.assertIn("isn't installed any more", self.win.toast_label.get_label())
+        self.win._show_event_package(events["alpha"])
+        self.assertEqual((self.win.view, self.win.packages.selected().pkg.name), ("all", "alpha"))
+
+    def test_history_paging_and_day_labels(self):
+        from urpm.history import Event
+        from urpm.ui.history_page import HistoryPage, day_label
+        now = time.mktime(time.strptime("2026-10-11 12:00", "%Y-%m-%d %H:%M"))
+        self.assertEqual(day_label(now - 3600, now), "Today")
+        self.assertEqual(day_label(now - 86400, now), "Yesterday")
+        self.assertEqual(day_label(now - 5 * 86400, now), "Tuesday, Oct 06, 2026")
+        page = HistoryPage(lambda event: None)
+        page.set_events([Event(time.time() - n, "installed", f"p{n}") for n in range(600)])
+        self.assertTrue(page.more.get_visible())
+        self.assertEqual(page.more.get_label(), "Show more (350 left)")
+        page.more.emit("clicked")
+        self.assertEqual(page.more.get_label(), "Show more (100 left)")
+        page.set_events([])
+        self.assertEqual(page.title.get_label(), "No history found")
+
+    def test_security_updates_stand_out(self):
+        names = self.shown_names()
+        self.win.packages.selection.set_selected(names.index("gamma"))
+        badges = [w.get_label() for w in self.labels_in(self.win.details.badges)]
+        self.assertIn("🛡 security update", badges)
+        self.assertEqual(self.win.stat_labels["updates"][1].get_label(), "updates · 🛡 1")
+        self.win.view = "updates"
+        self.win._refresh_view()
+        self.assertIn("🛡 1 security", self.win.banner_label.get_label())
+        self.win.view = "all"
+        self.win._refresh_view()
+
+    def test_hold_and_release(self):
+        names = self.shown_names()
+        self.win.packages.selection.set_selected(names.index("alpha"))
+        details = self.win.details
+        self.assertTrue(details.hold_button.get_visible())
+        self.assertEqual(details.hold_button.get_label(), "📌 Keep this version")
+        with mock.patch.object(self.win, "_run_action") as run:
+            self.win._on_hold()
+        title, action, done = run.call_args.args
+        self.assertEqual((action.argv, done), (["true", "hold", "alpha"], "📌 alpha stays at 1.10"))
+        gamma = next(i for i in self.win.items if i.pkg.name == "gamma")
+        gamma.pkg.held = True                                    # as if a hold took effect
+        try:
+            self.win.packages.selection.set_selected(self.shown_names().index("gamma"))
+            self.assertFalse(details.update_button.get_visible())   # held: no update button
+            self.assertEqual(details.hold_button.get_label(), "📌 Allow updates again")
+            self.assertIn("📌 held", [w.get_label() for w in self.labels_in(details.badges)])
+            self.assertEqual(self.win._updatable(), [])               # Update all skips it
+            with mock.patch.object(self.win, "_run_action") as run:
+                self.win._on_update()                                 # ignored while held
+                self.win._on_hold()
+            self.assertEqual(run.call_args.args[1].argv, ["true", "unhold", "gamma"])
+        finally:
+            gamma.pkg.held = False
+
+    def test_background_check_setting(self):
+        from urpm.ui.settings import SettingsWindow
+        with mock.patch("urpm.ui.settings.schedule") as schedule:
+            schedule.is_enabled.return_value = False
+            schedule.enable.return_value = "systemd"
+            window = SettingsWindow(self.win, self.win.get_application().theme)
+            window.background_switch.set_active(True)
+            spin(lambda: window.background_status.get_visible())
+            self.assertIn("every 6 hours", window.background_status.get_label())
+            schedule.enable.assert_called_once()
+            schedule.disable.side_effect = RuntimeError("systemctl said no")
+            window.background_switch.set_active(False)
+            spin(lambda: "Couldn't" in window.background_status.get_label())
+            self.assertTrue(window.background_switch.get_active())     # put back
+        window.destroy()
 
     def test_multiple_actions_stop_at_first_failure(self):
         from urpm.ui.dialogs import CommandDialog

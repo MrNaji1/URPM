@@ -12,6 +12,7 @@ real machine is read, run or changed.
 
 from __future__ import annotations
 
+import gzip
 import json
 import os
 import sys
@@ -32,6 +33,7 @@ TOOLS = (
     "eopkg",                                                       # Solus
     "flatpak", "snap", "nix-env", "nix", "brew", "pipx", "npm", "cargo",
     "cargo-install-update", "python3", "gtk-launch", "gio", "apt-cache", "paccache",
+    "arch-audit",
 )
 
 DESKTOP_ENTRY = "[Desktop Entry]\nType=Application\nName={name}\nExec={name}\n"
@@ -65,7 +67,7 @@ class FakeSystem:
             shim(self.bin / tool, tool)
         self._build_files()
 
-        from urpm.sources import apk, base, dpkg, eopkg, flatpak, nix, portage, rpm, snap
+        from urpm.sources import apk, base, dpkg, eopkg, flatpak, nix, pacman, portage, rpm, snap
         self._patches = [
             mock.patch.dict(os.environ, {
                 "PATH": str(self.bin), "HOME": str(self.home),
@@ -78,6 +80,10 @@ class FakeSystem:
             mock.patch.object(dpkg, "ARCHIVES", str(root / "apt-archives")),
             mock.patch.object(dpkg, "APPLICATIONS", str(root / "usr/share/applications")),
             mock.patch.object(rpm, "DNF_CACHES", (str(root / "dnf-cache"),)),
+            mock.patch.object(dpkg, "APT_HISTORY", str(root / "logs/apt/history.log")),
+            mock.patch.object(rpm, "DNF_RPM_LOG", str(root / "logs/dnf.rpm.log")),
+            mock.patch.object(rpm, "ZYPP_HISTORY", str(root / "logs/zypp/history")),
+            mock.patch.object(pacman, "PACMAN_LOG", str(root / "logs/pacman.log")),
             mock.patch.object(rpm, "RPM_DBS", (str(root / "rpmdb"),)),
             mock.patch.object(apk, "DB", str(root / "apk" / "installed")),
             mock.patch.object(apk, "WORLD", str(root / "apk" / "world")),
@@ -153,6 +159,33 @@ class FakeSystem:
         write(notes / "bin/notes", "")
         (r / "flatpak/runtime/org.freedesktop.Platform/x86_64/24.08/active/files").mkdir(
             parents=True)
+
+        # History logs, in each package manager's own format (APT's oldest one rotated + gzipped)
+        logs = r / "logs"
+        write(logs / "apt/history.log",
+              "Start-Date: 2026-10-02  09:30:00\nCommandline: apt upgrade\n"
+              "Upgrade: firefox:amd64 (131.0+build1, 132.0+build2)\n"
+              "End-Date: 2026-10-02  09:31:00\n")
+        with gzip.open(logs / "apt/history.log.1.gz", "wt") as fh:
+            fh.write("Start-Date: 2026-09-01  18:00:00\nRequested-By: me (1000)\n"
+                     "Install: 7zip:amd64 (23.01+dfsg-11), libfoo1:amd64 (1.0, automatic)\n"
+                     "End-Date: 2026-09-01  18:00:10\n\n"
+                     "Start-Date: 2026-09-15  12:00:00\nRemove: old-tool:amd64 (2.0)\n"
+                     "Purge: older-tool:amd64 (1.0)\nEnd-Date: 2026-09-15  12:00:05\n")
+        write(logs / "pacman.log",
+              "[2026-09-01T10:00:00+0200] [PACMAN] Running 'pacman -S firefox'\n"
+              "[2026-09-01T10:00:05+0200] [ALPM] installed firefox (130.0-1)\n"
+              "[2026-09-20T10:00:05+0200] [ALPM] upgraded firefox (130.0-1 -> 131.0-1)\n"
+              "[2026-09-21T10:00:05+0200] [ALPM] removed old-thing (1.0-1)\n")
+        write(logs / "dnf.rpm.log",
+              "2026-09-01T10:00:00+0000 SUBDEBUG Installed: gimp-2:2.10.38-1.fc40.x86_64\n"
+              "2026-09-20T10:00:00+0000 SUBDEBUG Upgrade: bash-5.2.26-3.fc40.x86_64\n"
+              "2026-09-20T10:00:00+0000 SUBDEBUG Upgraded: bash-5.2.26-2.fc40.x86_64\n"
+              "2026-09-21T10:00:00+0000 SUBDEBUG Erase: old-lib-1.0-1.fc40.noarch\n")
+        write(logs / "zypp/history",
+              "# 2026-09-01 10:00:00 vim-9.1.0-1.1.x86_64.rpm installed ok\n"
+              "2026-09-01 10:00:00|install|vim|9.1.0-1.1|x86_64|root@pc|repo-oss|abc|\n"
+              "2026-09-02 11:00:00|remove |nano|8.0-1.1|x86_64|root@pc|\n")
 
         # Caches and leftovers for the Cleanup centre
         write(r / "apt-archives/firefox_132.0_amd64.deb", "x" * 5000)

@@ -13,6 +13,7 @@ FORMAT = (
     "${db:Status-Abbrev}\t${Homepage}\t${binary:Summary}\n"
 )
 INFO_DIR = "/var/lib/dpkg/info"
+APT_HISTORY = "/var/log/apt/history.log"
 ARCHIVES = "/var/cache/apt/archives"   # downloaded .deb files
 APPLICATIONS = "/usr/share/applications"  # where packaged apps put their menu entries
 STATUS_FILE = "/var/lib/dpkg/status"
@@ -102,9 +103,34 @@ def parse_owners(text: str) -> dict[str, list[str]]:
     return owners
 
 
+def parse_security_updates(text: str) -> set[str]:
+    """Packages in `apt list --upgradable` whose new version comes from a -security suite."""
+    found = set()
+    for line in text.splitlines():
+        name, _, rest = line.partition("/")
+        suites = rest.split(" ", 1)[0]
+        if "upgradable from" in line and any(s.endswith("-security") for s in suites.split(",")):
+            found.add(name)
+    return found
+
+
 def parse_upgradable(text: str) -> dict[str, str]:
     """`apt list --upgradable`: 'name/suite 1.2 amd64 [upgradable from: 1.1]'."""
     return {m["name"]: m["version"] for m in map(_UPGRADABLE_RE.match, text.splitlines()) if m}
+
+
+def _listdir(folder: str) -> list[str]:
+    try:
+        return os.listdir(folder)
+    except OSError:
+        return []
+
+
+def _size(path: str) -> int:
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return 0
 
 
 class DpkgSource(Source):
@@ -125,6 +151,10 @@ class DpkgSource(Source):
             manual = set(run("apt-mark", "showmanual").split())
         native_arch = run("dpkg", "--print-architecture").strip()
         packages = parse_dpkg_list(run("dpkg-query", "-W", "-f", FORMAT), manual, native_arch)
+        if which("apt-mark"):
+            held = set(run("apt-mark", "showhold").split())
+            for pkg in packages:
+                pkg.held = pkg.name in held or pkg.name.split(":")[0] in held
         for pkg in packages:
             try:
                 pkg.installed = os.stat(f"{INFO_DIR}/{pkg.name}.list").st_mtime
@@ -167,8 +197,13 @@ class DpkgSource(Source):
     def check_updates(self, packages: list[Package]) -> int:
         if not which("apt"):
             return 0
-        updates = parse_upgradable(run("apt", "list", "--upgradable"))
-        return apply_updates(packages, updates, key=lambda p: p.name.split(":")[0])
+        text = run("apt", "list", "--upgradable")
+        found = apply_updates(packages, parse_upgradable(text),
+                              key=lambda p: p.name.split(":")[0])
+        security = parse_security_updates(text)
+        for pkg in packages:
+            pkg.security = bool(pkg.update) and pkg.name.split(":")[0] in security
+        return found
 
     def required_by(self, pkg: Package) -> list[str] | None:
         if not which("apt-cache"):
@@ -214,15 +249,18 @@ class DpkgSource(Source):
         return found
 
 
-def _listdir(folder: str) -> list[str]:
-    try:
-        return os.listdir(folder)
-    except OSError:
-        return []
+    def history(self) -> list:
+        from urpm import history
+        return history.from_files(history.rotated(APT_HISTORY), history.parse_apt_history)
 
+    def hold_action(self, pkg: Package) -> Action | None:
+        if not which("apt-mark"):
+            return None
+        return Action(["apt-mark", "hold", pkg.name], root=True,
+                      pretty=f"sudo apt-mark hold {pkg.name}")
 
-def _size(path: str) -> int:
-    try:
-        return os.path.getsize(path)
-    except OSError:
-        return 0
+    def unhold_action(self, pkg: Package) -> Action | None:
+        if not which("apt-mark"):
+            return None
+        return Action(["apt-mark", "unhold", pkg.name], root=True,
+                      pretty=f"sudo apt-mark unhold {pkg.name}")

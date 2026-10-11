@@ -13,8 +13,8 @@ from urpm.sources import KIND_LABELS, Source  # noqa: E402
 from urpm.ui.widgets import clear, label  # noqa: E402
 
 ALL, UPDATES, RECENT = "all", "updates", "recent"
-CLEANUP, DUPLICATES = "cleanup", "duplicates"
-TOOL_VIEWS = (CLEANUP, DUPLICATES)  # pages that aren't package lists
+CLEANUP, DUPLICATES, HISTORY = "cleanup", "duplicates", "history"
+TOOL_VIEWS = (CLEANUP, DUPLICATES, HISTORY)  # pages that aren't package lists
 RECENT_DAYS = 30
 
 
@@ -77,6 +77,7 @@ class Sidebar(Gtk.Box):
         self._heading("TOOLS")
         rows.append(self._row(CLEANUP, "🧹", "Cleanup", tools.get(CLEANUP, "…")))
         rows.append(self._row(DUPLICATES, "👯", "Duplicates", tools.get(DUPLICATES, "0")))
+        rows.append(self._row(HISTORY, "🕘", "History", tools.get(HISTORY, "…")))
         for kind, heading in KIND_LABELS.items():
             group = [s for s in sources if s.kind == kind]
             if group:

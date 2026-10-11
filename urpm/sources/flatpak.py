@@ -178,7 +178,39 @@ class FlatpakSource(Source):
 
     def list_packages(self) -> list[Package]:
         self._installed = self._list()
+        masks: dict[str, set[str]] = {}
+        for pkg in self._installed:
+            flag = installation_flag(pkg)
+            if flag not in masks:
+                try:
+                    masks[flag] = set(run("flatpak", "mask", flag).split())
+                except RuntimeError:
+                    masks[flag] = set()  # Flatpak before 1.11 has no masks
+            pkg.held = pkg.explicit and pkg.extra.get("app_id") in masks[flag]
         return self._installed
+
+    def history(self) -> list:
+        from urpm import history
+        names = {p.extra.get("app_id"): p.name for p in getattr(self, "_installed", [])}
+        events = history.parse_flatpak_history(run(
+            "flatpak", "history", "--columns=time,change,application,branch,installation",
+            timeout=60))
+        for event in events:  # show "Discord", not "com.discordapp.Discord", when we can
+            event.name = names.get(event.name, event.name)
+        return history.newest_first(events)
+
+    def hold_action(self, pkg: Package) -> Action | None:
+        if not pkg.explicit:
+            return None
+        flag, app_id = installation_flag(pkg), pkg.extra["app_id"]
+        return Action(["flatpak", "mask", flag, app_id], pretty=f"flatpak mask {flag} {app_id}")
+
+    def unhold_action(self, pkg: Package) -> Action | None:
+        if not pkg.explicit:
+            return None
+        flag, app_id = installation_flag(pkg), pkg.extra["app_id"]
+        return Action(["flatpak", "mask", "--remove", flag, app_id],
+                      pretty=f"flatpak mask --remove {flag} {app_id}")
 
     def required_by(self, pkg: Package) -> list[str] | None:
         if pkg.explicit:

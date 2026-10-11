@@ -46,6 +46,10 @@ can show you the whole picture.
 | 🔍 **Instant search** | Just start typing. Searches names, IDs and descriptions. |
 | 💖 **Just mine** | Hides packages that were only pulled in as dependencies. |
 | ✨ **Update checker** | Finds updates across all your package managers in the background. |
+| 🛡 **Security updates stand out** | Security fixes get a red 🛡 badge, so you know which updates matter most (APT, DNF and pacman with `arch-audit`). |
+| 📌 **Keep this version** | Hold a package so it isn't updated (APT, DNF, Flatpak, Homebrew). Held packages are skipped by *Update all*. |
+| 🕘 **History** | A timeline of everything installed, updated or removed, grouped by day, read from your package managers' own logs. |
+| 🔔 **Background update checks** | Optional. Every 6 hours URPM checks quietly and sends a notification when new updates appear, without keeping a window open. |
 | 🔄 **Update all** | One click (and one password prompt per package manager) updates everything in the Updates view. |
 | 🚀 **Open apps** | Launch Flatpaks, Snaps, AppImages and desktop apps. Double-click a row or press Enter. |
 | 🗑️ **Safe removal** | Previews everything that would be removed *before* you confirm, then asks for your password through polkit. |
@@ -87,6 +91,34 @@ back.
 <br><br>
 <img src="docs/screenshots/duplicates.png" alt="The Duplicate finder: Firefox installed through APT, Flatpak and Snap, Obsidian as an AppImage and a Flatpak, Telegram through APT and Flatpak" width="860">
 </div>
+
+## Staying up to date
+
+**🕘 History** in the sidebar's *Tools* section shows what changed on your system and when,
+newest first. Filter it by *Installed*, *Updated* or *Removed*, search it like the package
+list, and turn on *Just mine* to hide packages that came in as dependencies.
+
+| Package manager | Where the history comes from |
+|---|---|
+| APT | `/var/log/apt/history.log` (and its rotated copies) |
+| pacman | `/var/log/pacman.log` |
+| DNF / zypper | `/var/log/dnf.rpm.log`, `/var/log/zypp/history` |
+| Flatpak | `flatpak history` |
+| Snap | `snap changes` |
+
+**🛡 Security updates** are marked in red in the list, the details panel and the Updates
+banner. URPM finds them through `-security` suites on APT, `dnf updateinfo --security` on
+Fedora, and `arch-audit` on Arch (if it's installed).
+
+**📌 Keep this version** in the details panel holds a package at its current version
+(`apt-mark hold`, `dnf versionlock`, `flatpak mask`, `brew pin`). Press
+*Allow updates again* to release it.
+
+**🔔 Background checks** are off by default. Turn them on in **Settings → Updates**. On
+systems with systemd, URPM adds a small user timer (no root needed) that runs
+`urpm --check-updates` 15 minutes after login and then every 6 hours. Without systemd it
+checks once, 10 minutes after login. You're only notified about updates you haven't
+already been told about. Turning the switch off removes the timer again.
 
 ## Themes
 
@@ -341,13 +373,16 @@ python3 -m urpm
 - **Click a package** to see its description, size, homepage, dependencies, what needs it,
   and its files.
 - **🧹 Cleanup** and **👯 Duplicates** in the sidebar's *Tools* section find space to free.
+- **🕘 History** shows everything installed, updated or removed, by day.
+- **📌 Keep this version** stops a package from being updated until you allow it again.
 - **🚀 Open** launches it (when it's an app).
 - **✨ Update** appears when a newer version is available. In the *Updates* view,
   **Update all** updates everything at once.
 - **🗑️ Remove** first shows a preview of everything that would be removed. Nothing happens
   until you confirm and enter your password.
 - **Copy uninstall command** if you'd rather run it yourself in a terminal.
-- **🎨 Settings** (the brush button, or `Ctrl+,`) lets you pick a theme.
+- **🎨 Settings** (the brush button, or `Ctrl+,`) lets you pick a theme and turn on
+  background update checks.
 - **Menu → Export list…** saves the current view. Pick `.csv`, `.json` or `.txt` as the
   file extension.
 
@@ -381,6 +416,8 @@ python3 -m urpm
 - The `curl | bash` installer downloads a **release**, checks its **SHA-256 checksum**,
   and refuses to install anything that doesn't match.
 - AppImages are moved to the **trash**, not deleted.
+- The background update check only reads, never installs anything, and is off until you
+  turn it on.
 - Your package list never leaves your computer. The only network traffic is your package
   managers checking for updates.
 
@@ -418,7 +455,7 @@ urpm/
     window.py   the main window: wires the parts together, loading and actions
     table.py    the package list: model, fast sorting, search, columns
     sidebar.py  views, tools, package managers and the "Just mine" switch
-    cleanup_page.py, duplicates_page.py   the two tool pages
+    cleanup_page.py, duplicates_page.py, history_page.py   the tool pages
     details.py  the details panel on the right
     dialogs.py  remove confirmation, command output, export
     settings.py the Settings window and theme picker
@@ -428,6 +465,9 @@ urpm/
   cleanup.py    what the Cleanup centre can remove (plus developer caches)
   duplicates.py finding apps installed more than once
   icons.py      finding each package's icon through its desktop entry
+  history.py    reading install history from each package manager's logs
+  notify.py     `urpm --check-updates`: the quiet background check and its notification
+  schedule.py   turning the background check on and off (systemd timer or autostart)
   export.py     CSV / JSON / text export
   data/         icon, .desktop entry, AppStream metainfo
 packaging/      .deb builder, Arch PKGBUILD, RPM spec
