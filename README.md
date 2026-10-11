@@ -27,7 +27,11 @@ can show you the whole picture.
 
 - 🤔 *"What have I actually installed on this computer?"* Flip on **Just mine** to hide
   the thousands of libraries that came along as dependencies.
-- 💾 *"What's eating my disk?"* Sort by size across every package manager at once.
+- 💾 *"What's eating my disk?"* Sort by size across every package manager at once, or
+  open the **Cleanup centre** to free space in a click.
+- 👯 *"Why do I have Firefox three times?"* The **Duplicate finder** shows apps installed
+  through more than one package manager.
+- 🔗 *"Why is this library here?"* Every package shows what **needs** it.
 - ✨ *"What needs updating?"* One view shows updates from APT, Flatpak, Snap, npm and more.
 - 🕒 *"What changed recently?"* That's handy when something broke after an install.
 - 🧹 *"How do I get rid of this?"* Remove it right there, after URPM shows you exactly
@@ -45,6 +49,10 @@ can show you the whole picture.
 | 🔄 **Update all** | One click (and one password prompt per package manager) updates everything in the Updates view. |
 | 🚀 **Open apps** | Launch Flatpaks, Snaps, AppImages and desktop apps. Double-click a row or press Enter. |
 | 🗑️ **Safe removal** | Previews everything that would be removed *before* you confirm, then asks for your password through polkit. |
+| 🧹 **Cleanup centre** | Unused packages, unused Flatpak runtimes, old Snap versions, and APT, DNF, pacman, pip, npm, Cargo and Homebrew caches, with a "free up X GB" total. Everything is previewed before it's removed. |
+| 👯 **Duplicate finder** | Spots the same app installed through APT, Flatpak, Snap, AppImage… and how much space the extra copies use. |
+| 🔗 **Needed by** | Shows which installed packages depend on each package, and flags the ones nothing needs any more. |
+| 🖼️ **Real app icons** | Apps show their own icons, taken from their desktop entries. |
 | 📂 **File lists** | See which files a package put on your system. |
 | 📊 **Stats** | Package count, disk usage, how many you installed, and pending updates. |
 | 📤 **Export** | Save the current view as CSV, JSON or plain text. |
@@ -54,6 +62,30 @@ can show you the whole picture.
 
 <div align="center">
 <img src="docs/screenshots/remove-dialog.png" alt="Before removing GIMP, URPM warns that two other packages will be removed too" width="480">
+</div>
+
+## Cleanup and duplicates
+
+**🧹 Cleanup** adds up everything you can safely remove. Each item opens a preview
+showing every package, folder or cache it will remove, plus the exact commands, before
+anything happens. Data from uninstalled Flatpak apps goes to the Trash, so you can get it
+back.
+
+| What | How URPM finds it |
+|---|---|
+| Unused packages | `apt-get -s autoremove`, `pacman -Qdtq`, `dnf repoquery --unneeded` (all read-only) |
+| Unused Flatpak runtimes | platforms and SDKs no installed app uses (never GL drivers or other extensions) |
+| Leftover Flatpak data | folders in `~/.var/app` for apps that aren't installed |
+| Old Snap versions | disabled revisions in `snap list --all` |
+| Download caches | APT, DNF, pacman (`paccache` dry run), pip, npm, Cargo, Homebrew (`brew cleanup -n`) |
+
+**👯 Duplicates** groups apps installed more than once, even under different names
+(`telegram-desktop` from APT is the same app as `org.telegram.desktop` from Flathub).
+
+<div align="center">
+<img src="docs/screenshots/cleanup.png" alt="The Cleanup centre: 4.0 GB to free, from unused Flatpak runtimes, the npm cache, old Snap versions, unused APT packages and leftover app data" width="860">
+<br><br>
+<img src="docs/screenshots/duplicates.png" alt="The Duplicate finder: Firefox installed through APT, Flatpak and Snap, Obsidian as an AppImage and a Flatpak, Telegram through APT and Flatpak" width="860">
 </div>
 
 ## Themes
@@ -306,7 +338,9 @@ python3 -m urpm
 - **Search** by typing anywhere. `Esc` clears it. Package manager names work too, so
   `flatpak discord` finds Discord's Flatpak.
 - **Double-click** a package (or press `Enter`) to open it.
-- **Click a package** to see its description, size, homepage, dependencies and files.
+- **Click a package** to see its description, size, homepage, dependencies, what needs it,
+  and its files.
+- **🧹 Cleanup** and **👯 Duplicates** in the sidebar's *Tools* section find space to free.
 - **🚀 Open** launches it (when it's an app).
 - **✨ Update** appears when a newer version is available. In the *Updates* view,
   **Update all** updates everything at once.
@@ -383,13 +417,17 @@ urpm/
     app.py      Gtk.Application, shortcuts, command-line flags
     window.py   the main window: wires the parts together, loading and actions
     table.py    the package list: model, fast sorting, search, columns
-    sidebar.py  views, package managers and the "Just mine" switch
+    sidebar.py  views, tools, package managers and the "Just mine" switch
+    cleanup_page.py, duplicates_page.py   the two tool pages
     details.py  the details panel on the right
     dialogs.py  remove confirmation, command output, export
     settings.py the Settings window and theme picker
     theme.py    themes (colour palettes) and saved preferences
     widgets.py  small shared helpers
     style.css   all the cuteness
+  cleanup.py    what the Cleanup centre can remove (plus developer caches)
+  duplicates.py finding apps installed more than once
+  icons.py      finding each package's icon through its desktop entry
   export.py     CSV / JSON / text export
   data/         icon, .desktop entry, AppStream metainfo
 packaging/      .deb builder, Arch PKGBUILD, RPM spec

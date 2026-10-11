@@ -19,7 +19,7 @@ try:
 except (ImportError, ValueError):
     HAVE_GTK = False
 
-from urpm.sources.base import DEV, Action, Details, Package, Source
+from urpm.sources.base import DEV, Action, Cleanup, Details, Package, Source
 
 
 class FakeSource(Source):
@@ -57,6 +57,13 @@ class FakeSource(Source):
     def launch_argv(self, pkg):
         return ["true", pkg.name] if pkg.explicit else None
 
+    def required_by(self, pkg):
+        return {"beta": ["alpha"], "alpha": [], "gamma": []}.get(pkg.name)
+
+    def cleanups(self, packages):
+        return [Cleanup("fake-cache", "Fake download cache", "Old downloads.", "Fake", 5000,
+                        ["/tmp/fake-cache"], [Action(["true", "clean"])], kind="cache")]
+
 
 class BrokenSource(Source):
     id, label, emoji, kind = "broken", "Broken", "💥", DEV
@@ -91,14 +98,22 @@ class WindowTests(unittest.TestCase):
         cls.patch = mock.patch("urpm.ui.window.available_sources",
                                return_value=[FakeSource(), BrokenSource()])
         cls.patch.start()
+        # Keep tests independent of this machine: no real caches, no real icons.
+        cls.no_caches = mock.patch("urpm.cleanup.CACHES", ())
+        cls.no_caches.start()
+        cls.no_icons = mock.patch("urpm.icons.build_index", return_value={})
+        cls.no_icons.start()
         cls.app = appmod.UrpmApp()
         cls.app.register(None)
         cls.app.do_startup() if cls.app.theme is None else None
         cls.win = appmod.UrpmWindow(cls.app)
-        spin(lambda: cls.win.items and not cls.win._loading and not cls.win._checking_updates)
+        spin(lambda: cls.win.items and not cls.win._loading and not cls.win._checking_updates
+             and cls.win._scanned)
 
     @classmethod
     def tearDownClass(cls):
+        cls.no_icons.stop()
+        cls.no_caches.stop()
         cls.win.destroy()
         cls.patch.stop()
         cls.prefs.stop()
@@ -141,7 +156,8 @@ class WindowTests(unittest.TestCase):
         while row:
             ids.append(getattr(row, "view_id", None))
             row = row.get_next_sibling()
-        self.assertEqual([i for i in ids if i], ["all", "updates", "recent", "fake", "broken"])
+        self.assertEqual([i for i in ids if i], ["all", "updates", "recent", "cleanup",
+                                                 "duplicates", "fake", "broken"])
 
     def sidebar_rows(self):
         rows, row = {}, self.win.sidebar.source_list.get_first_child()
@@ -523,6 +539,147 @@ class WindowTests(unittest.TestCase):
     def test_window_width_picks_the_layout(self):
         from urpm.ui.window import layout_mode
         self.assertEqual([layout_mode(w) for w in (1400, 1200, 900)], [0, 1, 2])
+
+    def test_cleanup_page(self):
+        rows = self.sidebar_rows()
+        self.assertEqual(rows["cleanup"][0][-1], "5.0 KB")         # badge: space to free
+        self.assertEqual(rows["duplicates"][0][-1], "0")
+        self.win.view = "cleanup"
+        self.win._refresh_view()
+        self.assertEqual(self.win.content.get_visible_child_name(), "cleanup")
+        self.assertFalse(self.win.stats.get_visible())
+        self.assertFalse(self.win.details.get_visible())            # no details on tool pages
+        self.assertFalse(self.win.sidebar.get_hexpand())            # sidebar keeps its width
+        page = self.win.cleanup_page
+        self.assertEqual(page.title.get_label(), "You can free up 5.0 KB")
+        self.assertEqual([c.cleanup.id for c in self.children(page.cards)], ["fake-cache"])
+        with mock.patch("urpm.ui.window.ConfirmCleanupDialog") as dialog, \
+                mock.patch.object(self.win, "_run_action") as run:
+            self.win._review_cleanup(page.cleanups[0])
+            dialog.call_args.args[2]()                              # the user confirmed
+        title, actions, done = run.call_args.args
+        self.assertEqual([a.argv for a in actions], [["true", "clean"]])
+        self.assertIn("5.0 KB freed", done)
+        self.win.view = "all"
+        self.win._refresh_view()
+        self.assertTrue(self.win.stats.get_visible())
+        self.assertTrue(self.win.details.get_visible())
+        self.assertEqual(self.win.content.get_visible_child_name(), "table")
+
+    @staticmethod
+    def children(box):
+        found, child = [], box.get_first_child()
+        while child:
+            found.append(child)
+            child = child.get_next_sibling()
+        return found
+
+    def test_cleanup_with_option_like_names_is_refused(self):
+        bad = Cleanup("bad", "Bad", "", "Fake", 1, ["--force-everything"],
+                      [Action(["true", "--force-everything"])])
+        with mock.patch("urpm.ui.window.ConfirmCleanupDialog") as dialog:
+            self.win._review_cleanup(bad)
+        dialog.assert_not_called()
+        self.assertIn("refusing", self.win.toast_label.get_label())
+
+    def test_cleanup_dialog_shows_what_will_go(self):
+        from urpm.ui.dialogs import ConfirmCleanupDialog
+        item = Cleanup("x", "Unused packages", "", "APT", 2_000_000,
+                       [f"lib{n}" for n in range(70)],
+                       [Action(["apt-get", "autoremove", "-y"], root=True,
+                               pretty="sudo apt autoremove")])
+        confirmed = []
+        dialog = ConfirmCleanupDialog(self.win, item, lambda: confirmed.append(True))
+        text = " ".join(w.get_label() for w in self.labels_in(dialog))
+        self.assertIn("These packages will be removed", text)
+        self.assertIn("lib59", text)
+        self.assertIn("… and 10 more", text)                       # long lists are shortened
+        self.assertIn("sudo apt autoremove", text)
+        self.assertIn("password", text)
+        self.assertEqual(dialog.confirm.get_label(), "Free up 2.0 MB")
+        self.assertIsNot(dialog.get_focus(), dialog.confirm)
+        dialog.confirm.emit("clicked")
+        self.assertEqual(confirmed, [True])
+
+    def labels_in(self, widget):
+        stack, found = [widget], []
+        while stack:
+            current = stack.pop()
+            if isinstance(current, Gtk.Label):
+                found.append(current)
+            stack.extend(self.children(current))
+        return found
+
+    def test_needed_by_in_details(self):
+        names = self.shown_names()
+        self.win.packages.selection.set_selected(names.index("beta"))
+        spin(lambda: self.win.details.needed_by.get_visible())
+        self.assertEqual(self.win.details.needed_by.get_label(), "1 installed package: alpha")
+        self.win.packages.selection.set_selected(names.index("gamma"))
+        spin(lambda: self.win.details.needed_by.get_label() == "Nothing else installed needs this.")
+        from urpm.ui.details import describe_needed_by
+        self.assertIn("can probably be removed", describe_needed_by([], explicit=False))
+        self.assertIsNone(describe_needed_by(None, explicit=True))
+        self.assertIn("… and 5 more", describe_needed_by([f"p{n}" for n in range(45)], True))
+
+    def test_duplicates_page(self):
+        from urpm.duplicates import DuplicateGroup
+        from urpm.ui.table import PackageItem
+        other = type("Other", (FakeSource,), {"id": "other", "label": "Other", "emoji": "🎁"})()
+        copies = [PackageItem(Package("Alpha", "1", "fake", size=300), FakeSource()),
+                  PackageItem(Package("alpha", "1", "other", size=100), other)]
+        page = self.win.duplicates_page
+        page.show_groups([DuplicateGroup("Alpha", copies)])
+        self.assertEqual(page.title.get_label(), "1 app is installed more than once")
+        self.assertIn("could free 100 B", page.subtitle.get_label())
+        buttons = [w for w in self.walk(page) if isinstance(w, Gtk.Button)]
+        removes = [b for b in buttons if b.get_label() == "Remove this copy"]
+        self.assertEqual(len(removes), 2)
+        with mock.patch.object(self.win, "_remove_item") as remove:
+            page._on_remove = self.win._remove_item
+            for button in removes:
+                button.emit("clicked")
+        self.assertEqual({id(c.args[0]) for c in remove.call_args_list},
+                         {id(c) for c in copies})                   # each removes its own copy
+        page.show_groups([])
+        self.assertEqual(page.title.get_label(), "🎉 No duplicates")
+
+    def walk(self, widget):
+        stack, found = [widget], []
+        while stack:
+            current = stack.pop()
+            found.append(current)
+            stack.extend(self.children(current))
+        return found
+
+    def test_show_item_jumps_from_a_tool_page_to_the_package(self):
+        self.win.view = "duplicates"
+        self.win._refresh_view()
+        gamma = next(i for i in self.win.items if i.pkg.name == "gamma")
+        self.win._show_item(gamma)
+        self.assertEqual(self.win.view, "all")
+        self.assertEqual(self.win.packages.selected().pkg.name, "gamma")
+
+    def test_icons_in_rows_and_details(self):
+        import tempfile
+        from gi.repository import Gdk, GLib
+        from urpm.ui.widgets import show_icon
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "icon.png")
+            pixels = GLib.Bytes.new(bytes([255, 0, 128, 255]) * 16 * 16)
+            Gdk.MemoryTexture.new(16, 16, Gdk.MemoryFormat.R8G8B8A8, pixels, 64).save_to_png(path)
+            image = Gtk.Image()
+            self.assertTrue(show_icon(image, path))
+            self.assertFalse(show_icon(image, os.path.join(tmp, "missing.png")))
+            self.assertFalse(show_icon(image, "no-such-icon-name-urpm"))
+            self.assertFalse(show_icon(image, ""))
+            alpha = next(i for i in self.win.items if i.pkg.name == "alpha")
+            alpha.pkg.icon = path
+            self.win.packages.rows_changed()
+            self.win.packages.selection.set_selected(self.shown_names().index("alpha"))
+            self.assertTrue(self.win.details.icon.get_visible())
+            self.assertFalse(self.win.details.avatar.get_visible())
+            alpha.pkg.icon = ""
 
     def test_multiple_actions_stop_at_first_failure(self):
         from urpm.ui.dialogs import CommandDialog

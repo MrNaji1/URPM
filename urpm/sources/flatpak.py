@@ -6,14 +6,16 @@ import glob
 import os
 import xml.etree.ElementTree as ET
 
-from .base import (UNIVERSAL, Action, Details, Package, Source, apply_updates, parse_fields,
+from .base import (Cleanup, dir_size, which, UNIVERSAL, Action, Details, Package, Source, apply_updates, parse_fields,
                    parse_size, run)
 
-COLUMNS = "application,name,version,size,origin,installation,options,ref,description"
+COLUMNS = "application,name,version,size,origin,installation,options,ref,runtime,description"
 INSTALL_DIRS = {
     "system": "/var/lib/flatpak",
     "user": os.path.expanduser("~/.local/share/flatpak"),
 }
+# Per-app data folders. Uninstalling an app leaves its folder behind.
+APP_DATA_DIR = "~/.var/app"
 INFO_FIELDS = ("ID", "Ref", "Branch", "Origin", "Collection", "Installation",
                "Runtime", "Sdk", "License", "Date", "Commit")
 
@@ -25,7 +27,8 @@ def parse_flatpak_list(text: str) -> list[Package]:
         if len(parts) < 8:
             continue
         app_id, name, version, size, origin, installation, options, ref = parts[:8]
-        summary = parts[8] if len(parts) > 8 else ""
+        runtime = parts[8] if len(parts) > 8 else ""
+        summary = parts[9] if len(parts) > 9 else ""
         is_runtime = "runtime" in options.split(",")
         packages.append(Package(
             name=name or app_id,
@@ -36,7 +39,7 @@ def parse_flatpak_list(text: str) -> list[Package]:
             section=f"{'Runtime' if is_runtime else 'App'} · {origin} · {installation}",
             explicit=not is_runtime,
             ident=ref,
-            extra={"installation": installation, "app_id": app_id},
+            extra={"installation": installation, "app_id": app_id, "runtime": runtime},
         ))
     return packages
 
@@ -77,6 +80,18 @@ def installation_flag(pkg: Package) -> str:
     return f"--{name}" if name in ("system", "user") else f"--installation={name}"
 
 
+def unused_runtimes(packages: list[Package]) -> list[Package]:
+    """Platforms and SDKs that no installed app runs on.
+
+    Deliberately conservative: only main runtimes (…Platform, …Sdk) are considered, never
+    extensions such as GL drivers or codecs, whose use Flatpak decides itself.
+    """
+    used = {p.extra.get("runtime") for p in packages if p.explicit}
+    return [p for p in packages if not p.explicit
+            and p.extra.get("app_id", "").endswith((".Platform", ".Sdk"))
+            and p.ident not in used]
+
+
 def deploy_time(ref: str, installation: str, explicit: bool) -> float | None:
     base = INSTALL_DIRS.get(installation)
     if not base:
@@ -95,7 +110,7 @@ class FlatpakSource(Source):
     binary = "flatpak"
     kind = UNIVERSAL
 
-    def list_packages(self) -> list[Package]:
+    def _list(self) -> list[Package]:
         packages = parse_flatpak_list(run("flatpak", "list", f"--columns={COLUMNS}"))
         for pkg in packages:
             pkg.installed = deploy_time(pkg.ident, pkg.extra["installation"], pkg.explicit)
@@ -160,3 +175,48 @@ class FlatpakSource(Source):
         updates = parse_updates(run("flatpak", "remote-ls", "--updates", "--columns=ref,version",
                                     timeout=60))
         return apply_updates(packages, updates, key=lambda p: p.ident, same_version_ok=True)
+
+    def list_packages(self) -> list[Package]:
+        self._installed = self._list()
+        return self._installed
+
+    def required_by(self, pkg: Package) -> list[str] | None:
+        if pkg.explicit:
+            return None  # Flatpak doesn't track what uses an app
+        return [p.name for p in getattr(self, "_installed", [])
+                if p.explicit and p.extra.get("runtime") == pkg.ident]
+
+    def desktop_ids(self, pkg: Package) -> list[str]:
+        return [f"{pkg.extra['app_id']}.desktop"] if pkg.explicit else []
+
+    def cleanups(self, packages: list[Package]) -> list[Cleanup]:
+        found = []
+        unused = unused_runtimes(packages)
+        if unused:
+            by_flag: dict[str, list[str]] = {}
+            for pkg in unused:
+                by_flag.setdefault(installation_flag(pkg), []).append(pkg.ident)
+            found.append(Cleanup(
+                "flatpak-unused-runtimes", "Unused Flatpak runtimes",
+                "Shared platforms that none of your Flatpak apps use any more, usually "
+                "older versions left behind after app updates.",
+                self.label, sum(p.size for p in unused),
+                [f"{p.name} ({p.ident.rsplit('/', 1)[-1]})" for p in unused],
+                [Action(["flatpak", "uninstall", "-y", "--noninteractive", flag, *refs],
+                        pretty=f"flatpak uninstall {flag} {' '.join(refs)}")
+                 for flag, refs in by_flag.items()]))
+        data_dir = os.path.expanduser(APP_DATA_DIR)
+        installed = {p.extra.get("app_id") for p in packages if p.explicit}
+        try:
+            leftover = sorted(os.path.join(data_dir, d) for d in os.listdir(data_dir)
+                              if d not in installed)
+        except OSError:
+            leftover = []
+        if leftover and which("gio"):
+            found.append(Cleanup(
+                "flatpak-leftover-data", "Data from uninstalled Flatpak apps",
+                "Settings and files that apps you've uninstalled left in ~/.var/app. They'll "
+                "be moved to the Trash, so you can still get them back.",
+                self.label, sum(dir_size(d) for d in leftover), leftover,
+                [Action(["gio", "trash", *leftover])], kind="data"))
+        return found

@@ -31,6 +31,7 @@ class Package:
     ident: str = ""                 # what the package manager calls it (flatpak ref, path, ...)
     extra: dict[str, str] = field(default_factory=dict)  # source-specific bits
     update: str = ""                # newer version available, filled in by check_updates()
+    icon: str = ""                  # icon name or file, from the package's desktop entry
 
     def __post_init__(self):
         if not self.ident:
@@ -41,6 +42,20 @@ class Package:
 class Details:
     description: str = ""
     fields: list[tuple[str, str]] = field(default_factory=list)
+
+
+@dataclass
+class Cleanup:
+    """Something that can be removed to free disk space, with exactly what will go."""
+
+    id: str                     # stable id, e.g. "apt-autoremove"
+    title: str                  # "Unused APT packages"
+    description: str            # one or two plain sentences
+    source: str                 # package manager label, e.g. "APT"
+    size: int                   # bytes freed (0 when the tool can't say)
+    items: list[str]            # what will be removed: package names, revisions or folders
+    actions: list["Action"]     # the exact commands
+    kind: str = "packages"      # "packages", "cache" or "data"
 
 
 @dataclass
@@ -149,6 +164,19 @@ class Source:
 
     def launch_argv(self, pkg: Package) -> list[str] | None:
         return None
+
+    def required_by(self, pkg: Package) -> list[str] | None:
+        """Installed packages that need this one, or None if the source can't tell."""
+        return None
+
+    def cleanups(self, packages: list[Package]) -> list[Cleanup]:
+        """Things this package manager can safely clean up (unused packages, caches…)."""
+        return []
+
+    def desktop_ids(self, pkg: Package) -> list[str]:
+        """Desktop entry ids (like "firefox.desktop") this package probably ships, used
+        to find its icon. The default guesses from the package name."""
+        return [f"{pkg.name}.desktop"]
 
     def launch_warning(self, pkg: Package) -> str | None:
         """A reason to ask before opening this package (e.g. an untrusted download)."""

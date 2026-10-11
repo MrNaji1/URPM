@@ -17,6 +17,8 @@
       <li>Filter to only the things you installed yourself</li>
       <li>Check for updates across every package manager at once</li>
       <li>Open, update or safely remove packages, with a preview of what else would go</li>
+      <li>Free disk space: unused packages, old versions and caches, previewed first</li>
+      <li>Find apps installed more than once through different package managers</li>
       <li>Export your package list to CSV, JSON or text</li>
     </ul>
   </description>
@@ -25,6 +27,9 @@
   <url type="bugtracker">https://github.com/MrNaji1/URPM/issues</url>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="2.0.0" date="2026-10-11">
+      <description><p>The whole picture: a Cleanup centre that finds unused packages, old versions and caches to free disk space, a Duplicate finder for apps installed more than once, "Needed by" for every package, and real app icons.</p></description>
+    </release>
     <release version="1.5.0" date="2026-10-11">
       <description><p>Sorting is up to 6 times faster on big systems, and Cargo, pipx and Nix packages now get update checks.</p></description>
     </release>

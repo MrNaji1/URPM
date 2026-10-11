@@ -15,14 +15,15 @@ on your screen, and a URPM window you already have open isn't touched. CI does t
 
 ## 1. Automated tests
 
-**129 tests, 92% code coverage.** GitHub runs all of them on every push (the window tests
+**152 tests, 93% code coverage.** GitHub runs all of them on every push (the window tests
 under Xvfb), fails if coverage drops below 90%, and lints the code with `ruff`.
 
 | File | Tests | What it covers |
 |---|---:|---|
 | `test_sources.py` | 45 | Parsers and helpers for every package manager (no GTK needed) |
 | `test_e2e_sources.py` | 21 | **Every package manager end to end** on a fake system |
-| `test_ui.py` | 37 | The real window, run on a hidden display |
+| `test_ui.py` | 44 | The real window, run on a hidden display |
+| `test_whole_picture.py` | 16 | Cleanup centre, "needed by", icons and duplicates on the fake system |
 | `test_app.py` | 11 | Command-line options, saved settings, shared helpers |
 | `test_install.py` | 6 | The launcher and `install.sh` |
 | `test_theme.py` | 6 | Theme colours, readability, theme choice at startup |
@@ -52,6 +53,18 @@ architecture, no updates reported, a package changing from "installed by you" to
 "dependency") and the code (Gentoo marking everything as yours): every break made a test
 fail. One of these checks found a gap: nothing tested Debian's ":amd64" suffix handling
 for packages you installed. It's covered now.
+
+### Cleanup, "needed by", icons and duplicates (`tests/test_whole_picture.py`)
+
+| Area | What's checked |
+|---|---|
+| Cleanup per package manager | APT unused packages + download cache, pacman orphans + `paccache` dry run, DNF unneeded + cache, unused Flatpak runtimes, leftover Flatpak data, old Snap revisions: the right items, sizes and exact commands |
+| Cleanup safety | finding cleanups only ever runs read-only commands and dry runs; GL extensions are never flagged; installed apps' data is never flagged; leftover data goes to the Trash |
+| Developer caches | pip, npm, Cargo and Homebrew sizes and commands |
+| Errors | one failing package manager doesn't hide the other cleanups |
+| Needed by | APT (`apt-cache rdepends`, de-duplicated), pacman, DNF, XBPS, apk and Flatpak runtimes |
+| Icons | desktop entries indexed (main section only, subfolder ids), matched to APT, Flatpak and Snap packages |
+| Duplicates | same app under different names, three-way duplicates, space saved, dependencies ignored, and `*.desktop` app ids never matched to each other |
 
 ### Parsers and helpers (`tests/test_sources.py`)
 
@@ -113,6 +126,11 @@ These drive the real `UrpmWindow` with a fake package source and a deliberately 
 | copy, shortcuts, update | copy buttons, the shortcuts window, the Update button |
 | commands that can't run | they're copied to the clipboard with an explanation instead |
 | update-check errors | a package manager that fails its update check is named |
+| Cleanup page | badge shows the space to free, cards, preview dialog (long lists shortened, password note, Cancel focused), running a cleanup, refusing option-like names |
+| Duplicates page | groups, "could free", each "Remove this copy" removes its own copy, empty state |
+| tool pages | stats and details panel hidden, sidebar keeps its width, "Details" jumps to the package |
+| needed by | shown in the details panel, with a hint for unused dependencies |
+| icons | icon files and theme icons in rows and details, letters when there's no icon |
 | remove preview errors | a failing or unsupported preview says so instead of staying quiet |
 
 ## 2. Manual checklist
@@ -153,6 +171,19 @@ Run through this before a release, on a real desktop.
 - [ ] PKGBUILD on Arch, RPM spec on Fedora/openSUSE *(needs those distros)*
 
 ## 3. Results of the last test rounds
+
+### v2.0.0 (Phase 3: the whole picture)
+
+| Found | Fix |
+|---|---|
+| Flatpak IDs ending in `.desktop` (`com.bitwarden.desktop`, `org.telegram.desktop`) would all have looked like copies of one app called "desktop" | The packaging word is skipped and the part before it is used |
+| On the Cleanup and Duplicates pages the sidebar stretched and the details panel stayed open | The sidebar keeps its width; tool pages hide the details panel |
+| Finding icons for APT read 2,400 file lists (442 ms) | One `dpkg-query -S` call for all menu entries (179 ms) |
+| Duplicate detection would rerun on every sidebar refresh (95 ms at 60,000 packages) | Only reruns when the package list changes |
+| Flatpak has no dry run for removing unused runtimes | URPM works out unused platforms itself and removes exactly the ones it showed you |
+
+On this machine the Cleanup centre found **830 MB** to free (npm and pip caches), and the
+duplicate finder correctly found none.
 
 ### v1.5.0 (Phase 2: strong foundations)
 

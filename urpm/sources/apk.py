@@ -58,6 +58,12 @@ def parse_apk_version(text: str) -> dict[str, str]:
     return updates
 
 
+def parse_required_by(text: str) -> list[str]:
+    """`apk info -r vim`: 'vim-9.1.0-r0 is required by:' then one 'name-version' per line."""
+    return [split_name_version(line.strip())[0] for line in text.splitlines()
+            if line.strip() and not line.rstrip().endswith(":")]
+
+
 def parse_apk_simulation(text: str) -> list[str]:
     """`apk del -s foo`: '(1/2) Purging foo (1.0-r0)'."""
     return [line.split("Purging ", 1)[1].split(" (")[0]
@@ -107,3 +113,6 @@ class ApkSource(Source):
 
     def check_updates(self, packages: list[Package]) -> int:
         return apply_updates(packages, parse_apk_version(run("apk", "version", "-l", "<")))
+
+    def required_by(self, pkg: Package) -> list[str] | None:
+        return parse_required_by(run("apk", "info", "-r", pkg.name))

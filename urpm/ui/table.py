@@ -25,7 +25,8 @@ from gi.repository import Gio, GObject, Gtk, Pango  # noqa: E402
 
 from urpm.sources import Package, Source, human_size  # noqa: E402
 from urpm.sources.base import version_key  # noqa: E402
-from urpm.ui.widgets import avatar_class, format_date, label, pill_classes, short_label  # noqa: E402
+from urpm.ui.widgets import (avatar_class, format_date, label, pill_classes,  # noqa: E402
+                             short_label, show_icon)
 
 READ_ONLY = GObject.ParamFlags.READABLE
 NAME, VERSION, SOURCE = range(3)  # which rank
@@ -85,6 +86,7 @@ class PackageTable(Gtk.Box):
     def __init__(self, view_filter, on_activate, on_delete):
         super().__init__(css_classes=["table-card"], overflow=Gtk.Overflow.HIDDEN)
         self.items: list[PackageItem] = []
+        self.version = 0  # bumps whenever rows are added or removed
         self.max_size = 1
         self.terms: list[str] = []
         self._stale_ranks = {NAME, VERSION, SOURCE}
@@ -185,6 +187,7 @@ class PackageTable(Gtk.Box):
         start = positions[0] if positions else len(self.items)
         count = len(positions)  # a source's rows are always next to each other
         self.items[start:start + count] = fresh
+        self.version += 1
         self.max_size = max((i.pkg.size for i in self.items), default=0) or 1
         reranked = self._rerank_after_data_change()
         self.store.splice(start, count, fresh)
@@ -276,6 +279,8 @@ class PackageTable(Gtk.Box):
     @staticmethod
     def _setup_name():
         box = Gtk.Box(spacing=12)
+        box.icon = Gtk.Image(pixel_size=34, css_classes=["app-icon"])
+        box.append(box.icon)
         box.avatar = label("", "avatar")
         text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER)
         box.title = label("", "pkg-name", xalign=0, ellipsize=Pango.EllipsizeMode.END,
@@ -290,8 +295,12 @@ class PackageTable(Gtk.Box):
     @staticmethod
     def _bind_name(box, item):
         pkg = item.pkg
-        box.avatar.set_label(pkg.name[:1].upper())
-        box.avatar.set_css_classes(["avatar", avatar_class(pkg.name)])
+        has_icon = show_icon(box.icon, pkg.icon)
+        box.icon.set_visible(has_icon)
+        box.avatar.set_visible(not has_icon)
+        if not has_icon:  # a colourful first letter instead
+            box.avatar.set_label(pkg.name[:1].upper())
+            box.avatar.set_css_classes(["avatar", avatar_class(pkg.name)])
         box.title.set_label(pkg.name)
         box.summary.set_label(pkg.summary or " ")
 

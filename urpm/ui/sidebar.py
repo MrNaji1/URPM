@@ -13,6 +13,8 @@ from urpm.sources import KIND_LABELS, Source  # noqa: E402
 from urpm.ui.widgets import clear, label  # noqa: E402
 
 ALL, UPDATES, RECENT = "all", "updates", "recent"
+CLEANUP, DUPLICATES = "cleanup", "duplicates"
+TOOL_VIEWS = (CLEANUP, DUPLICATES)  # pages that aren't package lists
 RECENT_DAYS = 30
 
 
@@ -22,8 +24,10 @@ def recent_cutoff() -> float:
 
 class Sidebar(Gtk.Box):
     def __init__(self, on_view_selected, on_explicit_toggled):
+        # hexpand=False is set explicitly: rows contain expanding labels, and without it
+        # GTK would hand the sidebar spare width whenever the main area is narrow.
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=4,
-                         css_classes=["sidebar"], width_request=236)
+                         css_classes=["sidebar"], width_request=236, hexpand=False)
         self.view = ALL
         self._on_view_selected = on_view_selected
         self._rebuilding = False
@@ -51,8 +55,12 @@ class Sidebar(Gtk.Box):
     def only_explicit(self) -> bool:
         return self.explicit_switch.get_active()
 
-    def populate(self, items, sources: list[Source], errors: dict[str, str]) -> None:
-        """Rebuild the rows. Counts follow "Just mine", so they match what you'll see."""
+    def populate(self, items, sources: list[Source], errors: dict[str, str],
+                 tools: dict[str, str] | None = None) -> None:
+        """Rebuild the rows. Counts follow "Just mine", so they match what you'll see.
+
+        `tools` gives the badge text for the Cleanup and Duplicates rows."""
+        tools = tools or {}
         self._rebuilding = True
         clear(self.source_list)
         shown = [i for i in items if i.pkg.explicit or not self.only_explicit]
@@ -66,6 +74,9 @@ class Sidebar(Gtk.Box):
                 self._row(UPDATES, "✨", "Updates", sum(1 for i in shown if i.pkg.update)),
                 self._row(RECENT, "🕒", f"Last {RECENT_DAYS} days",
                           sum(1 for i in shown if (i.pkg.installed or 0) >= cutoff))]
+        self._heading("TOOLS")
+        rows.append(self._row(CLEANUP, "🧹", "Cleanup", tools.get(CLEANUP, "…")))
+        rows.append(self._row(DUPLICATES, "👯", "Duplicates", tools.get(DUPLICATES, "0")))
         for kind, heading in KIND_LABELS.items():
             group = [s for s in sources if s.kind == kind]
             if group:
@@ -92,7 +103,7 @@ class Sidebar(Gtk.Box):
         row.set_child(label(text, "sidebar-heading", xalign=0))
         self.source_list.append(row)
 
-    def _row(self, view_id: str, emoji: str, name: str, count: int,
+    def _row(self, view_id: str, emoji: str, name: str, count: int | str,
              error: str | None = None) -> Gtk.ListBoxRow:
         row = Gtk.ListBoxRow()
         row.view_id = view_id
@@ -102,7 +113,7 @@ class Sidebar(Gtk.Box):
         if error:
             row.set_tooltip_text(f"Couldn't read {name}: {error}")
             box.append(label("⚠️", "source-error"))
-        row.count = label(f"{count:,}", "count")
+        row.count = label(count if isinstance(count, str) else f"{count:,}", "count")
         box.append(row.count)
         row.set_child(box)
         self.source_list.append(row)

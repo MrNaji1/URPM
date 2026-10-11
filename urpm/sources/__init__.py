@@ -5,7 +5,7 @@ To teach URPM a new one, subclass ``Source`` and add it to ``ALL_SOURCES``.
 
 from .apk import ApkSource
 from .appimage import AppImageSource
-from .base import DEV, SYSTEM, UNIVERSAL, Action, Details, Package, Source, human_size
+from .base import DEV, SYSTEM, UNIVERSAL, Action, Cleanup, Details, Package, Source, human_size
 from .brew import BrewSource
 from .cargo import CargoSource
 from .dpkg import DpkgSource
@@ -38,5 +38,5 @@ def available_sources() -> list[Source]:
     return [src for src in ALL_SOURCES if src.available()]
 
 
-__all__ = ["ALL_SOURCES", "KIND_LABELS", "Action", "Details", "Package", "Source",
+__all__ = ["ALL_SOURCES", "KIND_LABELS", "Action", "Cleanup", "Details", "Package", "Source",
            "available_sources", "human_size", "DEV", "SYSTEM", "UNIVERSAL"]

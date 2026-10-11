@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import os
 
-from .base import (SYSTEM, Action, Details, Package, Source, apply_updates, desktop_launcher,
+from .base import (Cleanup, dir_size, SYSTEM, Action, Details, Package, Source, apply_updates, desktop_launcher,
                    parse_fields, run, which)
 
 FORMAT = ("%{NAME}\t%{VERSION}-%{RELEASE}\t%{SIZE}\t%{GROUP}\t"
           "%{INSTALLTIME}\t%{URL}\t%{SUMMARY}\n")
 INFO_FIELDS = ("Architecture", "License", "Vendor", "Packager", "Source RPM", "Build Date")
 RPM_DBS = ("/var/lib/rpm", "/usr/lib/sysimage/rpm")
+DNF_CACHES = ("/var/cache/dnf", "/var/cache/libdnf5")
 
 
 def parse_rpm_list(text: str) -> list[Package]:
@@ -127,3 +128,38 @@ class RpmSource(Source):
         text = run(tool, "repoquery", "--upgrades", "--qf", "%{name} %{evr}\n", "-q",
                    timeout=180)
         return apply_updates(packages, parse_repoquery_upgrades(text))
+
+    def required_by(self, pkg: Package) -> list[str] | None:
+        tool = frontend()
+        if tool not in ("dnf5", "dnf"):
+            return None
+        text = run(tool, "repoquery", "--installed", "--whatrequires", pkg.name,
+                   "--qf", "%{name}\n", "-q", timeout=120)
+        return sorted({n for n in text.split() if n != pkg.name})
+
+    def cleanups(self, packages: list[Package]) -> list[Cleanup]:
+        tool = frontend()
+        if tool not in ("dnf5", "dnf"):
+            return []
+        found = []
+        unneeded = sorted(set(run(tool, "repoquery", "--unneeded", "--qf", "%{name}\n", "-q",
+                                  timeout=120).split()))
+        if unneeded:
+            sizes = {p.name: p.size for p in packages}
+            found.append(Cleanup(
+                "dnf-autoremove", "Unused packages",
+                "Packages that were installed as dependencies of something you've since "
+                "removed. Nothing installed needs them any more.",
+                self.label, sum(sizes.get(n, 0) for n in unneeded), unneeded,
+                [Action([tool, "autoremove", "-y"], root=True,
+                        pretty=f"sudo {tool} autoremove")]))
+        caches = [d for d in DNF_CACHES if os.path.isdir(d)]
+        size = sum(dir_size(d) for d in caches)
+        if size:
+            found.append(Cleanup(
+                "dnf-cache", "DNF download cache",
+                "Downloaded packages and repository data. DNF fetches fresh copies when it "
+                "needs them.", self.label, size, caches,
+                [Action([tool, "clean", "all"], root=True, pretty=f"sudo {tool} clean all")],
+                kind="cache"))
+        return found

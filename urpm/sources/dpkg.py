@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import re
 
-from .base import (SYSTEM, Action, Details, Package, Source, apply_updates, desktop_launcher,
+from .base import (Cleanup, SYSTEM, Action, Details, Package, Source, apply_updates, desktop_launcher,
                    parse_fields, run, which)
 
 FORMAT = (
@@ -13,6 +13,8 @@ FORMAT = (
     "${db:Status-Abbrev}\t${Homepage}\t${binary:Summary}\n"
 )
 INFO_DIR = "/var/lib/dpkg/info"
+ARCHIVES = "/var/cache/apt/archives"   # downloaded .deb files
+APPLICATIONS = "/usr/share/applications"  # where packaged apps put their menu entries
 STATUS_FILE = "/var/lib/dpkg/status"
 EXTRA_FIELDS = ("Maintainer", "Architecture", "Source", "Priority", "Depends", "Recommends")
 NONINTERACTIVE = {"DEBIAN_FRONTEND": "noninteractive"}
@@ -77,6 +79,29 @@ def parse_simulated_removal(text: str) -> list[str]:
     return [line.split()[1] for line in text.splitlines() if line.startswith("Remv ")]
 
 
+def parse_rdepends(text: str, name: str) -> list[str]:
+    """`apt-cache rdepends --installed foo`: 'foo', 'Reverse Depends:', then '  |bar' lines."""
+    found: list[str] = []
+    for line in text.splitlines()[2:]:
+        dep = line.strip().lstrip("|")
+        if dep and dep != name and dep not in found:
+            found.append(dep)
+    return found
+
+
+def parse_owners(text: str) -> dict[str, list[str]]:
+    """`dpkg-query -S file…`: 'pkg: /path' or 'pkg1, pkg2: /path' -> package -> desktop ids."""
+    owners: dict[str, list[str]] = {}
+    for line in text.splitlines():
+        names, sep, path = line.partition(": ")
+        if not sep or "/share/applications/" not in path or line.startswith("diversion"):
+            continue
+        desktop_id = path.split("/share/applications/", 1)[1].replace("/", "-")
+        for name in names.split(", "):
+            owners.setdefault(name.split(":")[0], []).append(desktop_id)
+    return owners
+
+
 def parse_upgradable(text: str) -> dict[str, str]:
     """`apt list --upgradable`: 'name/suite 1.2 amd64 [upgradable from: 1.1]'."""
     return {m["name"]: m["version"] for m in map(_UPGRADABLE_RE.match, text.splitlines()) if m}
@@ -89,7 +114,10 @@ class DpkgSource(Source):
     binary = "dpkg-query"
     kind = SYSTEM
 
+    _owners: dict[str, list[str]] | None = None
+
     def list_packages(self) -> list[Package]:
+        self._owners = None  # rebuilt on the next icon lookup
         if not os.path.exists(STATUS_FILE):
             return []  # dpkg installed as a helper tool on a non-Debian system
         manual = None
@@ -141,3 +169,60 @@ class DpkgSource(Source):
             return 0
         updates = parse_upgradable(run("apt", "list", "--upgradable"))
         return apply_updates(packages, updates, key=lambda p: p.name.split(":")[0])
+
+    def required_by(self, pkg: Package) -> list[str] | None:
+        if not which("apt-cache"):
+            return None
+        text = run("apt-cache", "rdepends", "--installed", "--no-recommends", "--no-suggests",
+                   "--no-conflicts", "--no-breaks", "--no-replaces", "--no-enhances",
+                   pkg.name)
+        return parse_rdepends(text, pkg.name)
+
+    def desktop_ids(self, pkg: Package) -> list[str]:
+        # One dpkg call for every menu entry, instead of reading thousands of file lists.
+        if self._owners is None:
+            entries = [os.path.join(APPLICATIONS, f) for f in sorted(_listdir(APPLICATIONS))
+                       if f.endswith(".desktop")]
+            self._owners = parse_owners(run("dpkg-query", "-S", *entries, ok_codes=(0, 1))
+                                        if entries else "")
+        return self._owners.get(pkg.name.split(":")[0], [])
+
+    def cleanups(self, packages: list[Package]) -> list[Cleanup]:
+        found = []
+        if which("apt-get"):
+            unused = parse_simulated_removal(run("apt-get", "-s", "autoremove"))
+            if unused:
+                sizes = {p.name.split(":")[0]: p.size for p in packages}
+                found.append(Cleanup(
+                    "apt-autoremove", "Unused APT packages",
+                    "Packages that were installed as dependencies of something you've since "
+                    "removed. Nothing installed needs them any more.",
+                    self.label, sum(sizes.get(n.split(":")[0], 0) for n in unused), unused,
+                    [Action(["apt-get", "autoremove", "-y"], root=True, env=NONINTERACTIVE,
+                            pretty="sudo apt autoremove")]))
+            downloads = [os.path.join(ARCHIVES, f) for f in _listdir(ARCHIVES)
+                         if f.endswith(".deb")]
+            size = sum(_size(f) for f in downloads)
+            if size:
+                found.append(Cleanup(
+                    "apt-cache", "Downloaded APT packages",
+                    "Copies of .deb files APT downloaded to install or update packages. "
+                    "They're no longer needed and can be downloaded again.",
+                    self.label, size, [ARCHIVES], [Action(["apt-get", "clean"], root=True,
+                                                           pretty="sudo apt clean")],
+                    kind="cache"))
+        return found
+
+
+def _listdir(folder: str) -> list[str]:
+    try:
+        return os.listdir(folder)
+    except OSError:
+        return []
+
+
+def _size(path: str) -> int:
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return 0

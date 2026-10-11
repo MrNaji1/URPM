@@ -76,3 +76,9 @@ class XbpsSource(Source):
     def check_updates(self, packages: list[Package]) -> int:
         text = run("xbps-install", "-nu", timeout=120, ok_codes=(0, 6))
         return apply_updates(packages, parse_xbps_updates(text))
+
+    def required_by(self, pkg: Package) -> list[str] | None:
+        # -X lists reverse dependencies; it exits 2 when there are none.
+        return [split_name_version(line.strip())[0]
+                for line in run("xbps-query", "-X", pkg.name, ok_codes=(0, 2)).splitlines()
+                if line.strip()]

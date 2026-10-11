@@ -9,11 +9,14 @@ import subprocess
 import threading
 import time
 
-from gi.repository import GLib, Gtk, Pango
+import gi
 
-from urpm.sources import Action, Package, Source, human_size
-from urpm.sources.base import UnsafeCommand, root_binary, which
-from urpm.ui.widgets import label
+gi.require_version("Gtk", "4.0")
+from gi.repository import GLib, Gtk, Pango  # noqa: E402
+
+from urpm.sources import Action, Package, Source, human_size  # noqa: E402
+from urpm.sources.base import UnsafeCommand, root_binary, which  # noqa: E402
+from urpm.ui.widgets import label  # noqa: E402
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\r")
 PKEXEC_CANCELLED, PKEXEC_DENIED = 126, 127
@@ -143,6 +146,53 @@ class ConfirmLaunchDialog(_Dialog):
         cancel = self.add_button("Cancel", "soft", self.close)
         self.confirm = self.add_button("Open anyway", "danger", self._confirm)
         self.set_focus(cancel)  # never start with the risky button focused
+
+    def _confirm(self):
+        self.close()
+        self._on_confirm()
+
+
+class ConfirmCleanupDialog(_Dialog):
+    """Shows everything a cleanup will remove and the exact commands, before it runs."""
+
+    MAX_SHOWN = 60
+
+    def __init__(self, parent, item, on_confirm):
+        super().__init__(parent, item.title, width=560)
+        self._on_confirm = on_confirm
+        top = Gtk.Box(spacing=14)
+        top.append(label("🧹", "big-emoji"))
+        titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER)
+        titles.append(label(item.title, "placeholder-title", xalign=0, wrap=True))
+        size = f"Frees {human_size(item.size)} · " if item.size else ""
+        titles.append(label(f"{size}{item.source}", "dim", xalign=0, wrap=True))
+        top.append(titles)
+        self.body.append(top)
+
+        removed = {"packages": "These packages will be removed:",
+                   "data": "These folders will be moved to the Trash:"}.get(
+                       item.kind, "These will be emptied:")
+        self.body.append(label(removed, "key", xalign=0))
+        shown = item.items[:self.MAX_SHOWN]
+        text = "\n".join(shown)
+        if len(item.items) > self.MAX_SHOWN:
+            text += f"\n… and {len(item.items) - self.MAX_SHOWN} more"
+        listing = label(text, "mono", "command", xalign=0, wrap=True, selectable=True,
+                        wrap_mode=Pango.WrapMode.CHAR)
+        self.body.append(Gtk.ScrolledWindow(child=listing, max_content_height=220,
+                                            propagate_natural_height=True,
+                                            hscrollbar_policy=Gtk.PolicyType.NEVER))
+        self.body.append(label("URPM will run:", "key", xalign=0))
+        self.body.append(label("\n".join(a.display() for a in item.actions), "mono", "dim",
+                               xalign=0, wrap=True, selectable=True,
+                               wrap_mode=Pango.WrapMode.CHAR))
+        if any(a.root for a in item.actions):
+            self.body.append(label("🔒 You'll be asked for your password.", "dim", xalign=0))
+        cancel = self.add_button("Cancel", "soft", self.close)
+        css = "cute" if item.kind == "cache" else "danger"
+        self.confirm = self.add_button(f"Free up {human_size(item.size)}" if item.size
+                                       else "Clean up", css, self._confirm)
+        self.set_focus(cancel)
 
     def _confirm(self):
         self.close()
@@ -355,5 +405,5 @@ def launch(argv: list[str]) -> None:
                      stderr=subprocess.DEVNULL, start_new_session=True)
 
 
-__all__ = ["CommandDialog", "ConfirmLaunchDialog", "ConfirmRemoveDialog", "can_run",
-           "choose_export_file", "launch"]
+__all__ = ["CommandDialog", "ConfirmCleanupDialog", "ConfirmLaunchDialog",
+           "ConfirmRemoveDialog", "can_run", "choose_export_file", "launch"]

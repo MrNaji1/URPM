@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import os
 import time
 import zlib
 
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk  # noqa: E402
+gi.require_version("Gdk", "4.0")
+from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 from urpm.sources import Source  # noqa: E402
 
@@ -49,3 +51,32 @@ def short_label(source: Source) -> str:
 
 def format_date(ts: float | None) -> str:
     return time.strftime("%b %d, %Y", time.localtime(ts)) if ts else "—"
+
+
+_textures: dict[str, Gdk.Texture | None] = {}
+
+
+def show_icon(image: Gtk.Image, icon: str) -> bool:
+    """Show a package icon (a theme icon name or an image file) in `image`.
+
+    Returns False when there's nothing to show, so the caller can fall back to the letter
+    avatar. File icons are loaded once and cached; theme lookups are cheap.
+    """
+    if not icon:
+        return False
+    if os.path.isabs(icon):
+        if icon not in _textures:
+            try:
+                _textures[icon] = Gdk.Texture.new_from_filename(icon)
+            except GLib.Error:
+                _textures[icon] = None
+        texture = _textures[icon]
+        if texture is None:
+            return False
+        image.set_from_paintable(texture)
+        return True
+    display = image.get_display() or Gdk.Display.get_default()
+    if display is None or not Gtk.IconTheme.get_for_display(display).has_icon(icon):
+        return False
+    image.set_from_icon_name(icon)
+    return True

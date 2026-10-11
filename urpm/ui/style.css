@@ -337,6 +337,32 @@ textview.log, textview.log > text {
 textview.log { padding: 10px 12px; }
 scrolledwindow.log-scroller { border-radius: 14px; }
 
+/* ---------- tool pages: Cleanup and Duplicates ---------- */
+
+.tool-page { margin: 18px 18px 6px; }
+.tool-header {
+  background: @urpm_card_lilac;
+  border-radius: 22px;
+  padding: 18px 22px;
+  border: 1px solid alpha(@urpm_shadow, 0.08);
+}
+label.tool-title { font-size: 1.35em; font-weight: 900; }
+.tool-card {
+  background: @urpm_surface;
+  border: 1px solid @urpm_border;
+  border-radius: 20px;
+  padding: 16px 18px;
+  box-shadow: 0 3px 12px alpha(@urpm_shadow, 0.06);
+}
+label.tool-size { font-size: 1.3em; font-weight: 900; color: @urpm_accent; }
+.copy-row {
+  background: @urpm_chip;
+  border-radius: 14px;
+  padding: 8px 12px;
+}
+.copy-row button.soft { background: @urpm_surface; }
+.copy-row button.soft:hover { background: @urpm_selected; }
+
 /* ---------- settings ---------- */
 
 label.settings-heading {

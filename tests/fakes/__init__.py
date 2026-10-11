@@ -31,7 +31,7 @@ TOOLS = (
     "emerge",                                                      # Gentoo
     "eopkg",                                                       # Solus
     "flatpak", "snap", "nix-env", "nix", "brew", "pipx", "npm", "cargo",
-    "cargo-install-update", "python3", "gtk-launch", "gio",
+    "cargo-install-update", "python3", "gtk-launch", "gio", "apt-cache", "paccache",
 )
 
 DESKTOP_ENTRY = "[Desktop Entry]\nType=Application\nName={name}\nExec={name}\n"
@@ -75,6 +75,9 @@ class FakeSystem:
             mock.patch.object(base, "EXTRA_PATHS", ()),
             mock.patch.object(dpkg, "STATUS_FILE", str(root / "dpkg" / "status")),
             mock.patch.object(dpkg, "INFO_DIR", str(root / "dpkg" / "info")),
+            mock.patch.object(dpkg, "ARCHIVES", str(root / "apt-archives")),
+            mock.patch.object(dpkg, "APPLICATIONS", str(root / "usr/share/applications")),
+            mock.patch.object(rpm, "DNF_CACHES", (str(root / "dnf-cache"),)),
             mock.patch.object(rpm, "RPM_DBS", (str(root / "rpmdb"),)),
             mock.patch.object(apk, "DB", str(root / "apk" / "installed")),
             mock.patch.object(apk, "WORLD", str(root / "apk" / "world")),
@@ -151,7 +154,19 @@ class FakeSystem:
         (r / "flatpak/runtime/org.freedesktop.Platform/x86_64/24.08/active/files").mkdir(
             parents=True)
 
+        # Caches and leftovers for the Cleanup centre
+        write(r / "apt-archives/firefox_132.0_amd64.deb", "x" * 5000)
+        write(r / "apt-archives/partial/ignored.txt", "x")
+        write(r / "dnf-cache/updates/packages/gimp.rpm", "x" * 7000)
+        write(r / "pip-cache/http/abc", "x" * 3000)
+        write(r / "npm-cache/_cacache/content/xyz", "x" * 9000)
+        write(r / "cargo/registry/cache/index/ripgrep-14.1.1.crate", "x" * 4000)
+        write(r / "cargo/registry/src/index/ripgrep-14.1.1/lib.rs", "x" * 1000)
+        write(self.home / ".var/app/org.example.Notes/config/notes.conf", "kept: installed")
+        write(self.home / ".var/app/org.old.Removed/data/big.db", "x" * 6000)
+
         # Snap
+        write(r / "snaps/firefox_4800.snap", "x" * 1900)  # old, disabled revision
         write(r / "snaps/firefox_4955.snap", "x" * 2048)
         write(r / "snaps/core22_1122.snap", "x" * 1024)
         write(r / "snap-desktop/firefox_firefox.desktop", DESKTOP_ENTRY.format(name="firefox"))

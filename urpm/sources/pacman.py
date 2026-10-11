@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import re
 import time
 
-from .base import (SYSTEM, Action, Details, Package, Source, apply_updates, desktop_launcher,
+from .base import (Cleanup, SYSTEM, Action, Details, Package, Source, apply_updates, desktop_launcher,
                    parse_fields, parse_size, run, which)
 
 INFO_FIELDS = ("Architecture", "Licenses", "Groups", "Packager", "Depends On",
@@ -43,6 +44,12 @@ def parse_pacman_info(text: str) -> list[tuple[Package, dict[str, str]]]:
             homepage="" if homepage == "None" else homepage,
         ), fields))
     return results
+
+
+def parse_paccache_dry_run(text: str) -> int:
+    """`paccache -dk1`: '==> finished dry run: 4 candidates (disk space saved: 120.36 MiB)'."""
+    match = re.search(r"disk space saved: ([\d.]+ ?\w+)", text)
+    return parse_size(match.group(1)) if match else 0
 
 
 def parse_checkupdates(text: str) -> dict[str, str]:
@@ -92,3 +99,31 @@ class PacmanSource(Source):
             return 0
         updates = parse_checkupdates(run("checkupdates", timeout=180, ok_codes=(0, 2)))
         return apply_updates(packages, updates)
+
+    def required_by(self, pkg: Package) -> list[str] | None:
+        parsed = parse_pacman_info(run("pacman", "-Qi", pkg.name))
+        needed = parsed[0][1].get("Required By", "None") if parsed else "None"
+        return [] if needed == "None" else needed.split()
+
+    def cleanups(self, packages: list[Package]) -> list[Cleanup]:
+        found = []
+        # -Qdtq: dependencies (-d) nothing needs any more (-t). Exits 1 when there are none.
+        orphans = run("pacman", "-Qdtq", ok_codes=(0, 1)).split()
+        if orphans:
+            sizes = {p.name: p.size for p in packages}
+            found.append(Cleanup(
+                "pacman-orphans", "Orphaned packages",
+                "Dependencies that nothing installed needs any more.",
+                self.label, sum(sizes.get(n, 0) for n in orphans), orphans,
+                [Action(["pacman", "-Rns", "--noconfirm", *orphans], root=True,
+                        pretty=f"sudo pacman -Rns {' '.join(orphans)}")]))
+        if which("paccache"):  # from pacman-contrib
+            saved = parse_paccache_dry_run(run("paccache", "-dk1", ok_codes=(0, 1)))
+            if saved:
+                found.append(Cleanup(
+                    "pacman-cache", "Old cached pacman packages",
+                    "Older versions pacman kept after updates. The newest copy of each is "
+                    "kept, so you can still reinstall without downloading.",
+                    self.label, saved, ["/var/cache/pacman/pkg"],
+                    [Action(["paccache", "-rk1"], root=True)], kind="cache"))
+        return found

@@ -39,6 +39,13 @@ Description: Safe and easy web browser from Mozilla
                                  "{root}/usr/share/applications/firefox.desktop\n", 0),
     ("apt-get", "-s remove 7zip", "NOTE: This is only a simulation!\n"
                                   "Remv p7zip-full [16.02]\nRemv 7zip [23.01+dfsg-11]\n", 0),
+    ("apt-get", "-s autoremove", "NOTE: This is only a simulation!\n"
+                                 "Remv libgtk-4-1 [4.14.2+ds-1]\nRemv old-helper [1.0]\n", 0),
+    ("apt-cache", "rdepends --installed *libgtk-4-1*",
+     "libgtk-4-1\nReverse Depends:\n  firefox\n |gnome-text-editor\n  firefox\n", 0),
+    ("apt-cache", "rdepends --installed *firefox", "firefox\nReverse Depends:\n", 0),
+    ("dpkg-query", "-S *", "firefox: {root}/usr/share/applications/firefox.desktop\n"
+                           "dpkg-query: no path found matching pattern x\n", 1),
     ("apt", "list --upgradable",
      "Listing...\nfirefox/noble-updates 132.0+build2 amd64 [upgradable from: 131.0+build1]\n", 0),
 
@@ -64,6 +71,8 @@ editing program.
     ("dnf", "repoquery --installed --whatrequires gimp --recursive *",
      "gimp-data\ngimp-libs\ngimp\n", 0),
     ("dnf", "repoquery --upgrades *", "gimp 2:2.10.38-2.fc40\n", 0),
+    ("dnf", "repoquery --unneeded *", "bash\nold-lib\nold-lib\n", 0),
+    ("dnf", "repoquery --installed --whatrequires gimp --qf *", "gimp-plugin-x\ngimp\n", 0),
     ("zypper", "-n rm --dry-run gimp", "Loading repository data...\n\n"
      "The following 2 packages are going to be REMOVED:\n  gimp gimp-plugin-aa\n\n"
      "2 packages to remove.\n", 0),
@@ -100,6 +109,9 @@ Install Reason  : Explicitly installed
                                "{root}/usr/share/applications/firefox.desktop\n", 0),
     ("pacman", "-Rs --print --print-format %n firefox", "firefox\nlibxt\n", 0),
     ("checkupdates", "", "firefox 131.0-1 -> 132.0-1\n", 0),
+    ("pacman", "-Qi bash", "Name            : bash\nRequired By     : firefox  readline\n", 0),
+    ("pacman", "-Qdtq", "bash\n", 0),
+    ("paccache", "-dk1", "==> finished dry run: 3 candidates (disk space saved: 120.36 MiB)\n", 0),
 
     # ------------------------------------------------------------------ Void / XBPS
     ("xbps-query", "-m", "base-system-0.114_1\nvim-9.1.0_1\n", 0),
@@ -109,10 +121,12 @@ Install Reason  : Explicitly installed
     ("xbps-query", "-S vim", "architecture: x86_64\ninstalled_size: 33MB\n"
                              "homepage: https://www.vim.org\nlicense: Vim\n", 0),
     ("xbps-query", "-f vim", "/usr/bin/vim\n/usr/bin/vi -> /usr/bin/vim\n", 0),
+    ("xbps-query", "-X vim", "vim-colorschemes-1.0_1\n", 0),
     ("xbps-install", "-nu", "vim-9.1.1_1 update x86_64 https://repo-default.voidlinux.org\n", 0),
 
     # ------------------------------------------------------------------ Alpine / apk
     ("apk", "del -s vim", "(1/2) Purging vim (9.1.0-r0)\n(2/2) Purging xxd (9.1.0-r0)\nOK\n", 0),
+    ("apk", "info -r vim", "vim-9.1.0-r0 is required by:\nvim-airline-0.11-r0\n", 0),
     ("apk", "version -l <", "Installed:  Available:\nvim-9.1.0-r0 < 9.1.1-r0\n", 0),
 
     # ------------------------------------------------------------------ Solus / eopkg
@@ -121,10 +135,17 @@ Install Reason  : Explicitly installed
     # ------------------------------------------------------------------ Flatpak
     ("flatpak", "list --columns=*", "".join(T.join(row) + "\n" for row in [
         ["org.example.Notes", "Notes", "2.1", "15.8 MB", "flathub", "system",
-         "system,current", "org.example.Notes/x86_64/stable", "Write things down"],
+         "system,current", "org.example.Notes/x86_64/stable",
+         "org.freedesktop.Platform/x86_64/24.08", "Write things down"],
         ["org.freedesktop.Platform", "Freedesktop Platform", "24.08.5", "668.9 MB",
-         "flathub", "system", "system,runtime", "org.freedesktop.Platform/x86_64/24.08",
+         "flathub", "system", "system,runtime", "org.freedesktop.Platform/x86_64/24.08", "",
          "Runtime platform"],
+        # an old platform nothing uses any more, and a GL extension (never flagged)
+        ["org.gnome.Platform", "GNOME Application Platform", "45", "900 MB", "flathub",
+         "system", "system,runtime", "org.gnome.Platform/x86_64/45", "", "GNOME runtime"],
+        ["org.freedesktop.Platform.GL.default", "Mesa", "24.0", "300 MB", "flathub",
+         "system", "system,runtime", "org.freedesktop.Platform.GL.default/x86_64/23.08", "",
+         "Mesa drivers"],
     ]), 0),
     ("flatpak", "info --system org.example.Notes/x86_64/stable", """
 Notes - Write things down
@@ -146,6 +167,11 @@ Notes - Write things down
      "name:      firefox\nsummary:   Mozilla Firefox web browser\npublisher: Mozilla**\n"
      "license:   MPL-2.0\ndescription: |\n  Firefox is a powerful, extensible web browser.\n"
      "channels:\n  latest/stable: 131.0\n", 0),
+    ("snap", "list --all --unicode=never --color=never",
+     "Name     Version   Rev    Tracking       Publisher   Notes\n"
+     "core22   20240111  1122   latest/stable  canonical** base\n"
+     "firefox  130.0-1   4800   latest/stable  mozilla**   disabled\n"
+     "firefox  131.0-1   4955   latest/stable  mozilla**   -\n", 0),
     ("snap", "refresh --list", "Name     Version  Rev   Size   Publisher  Notes\n"
                                "firefox  132.0-1  5001  280MB  mozilla**  -\n", 0),
 
@@ -183,6 +209,12 @@ Notes - Write things down
     # ------------------------------------------------------------------ pip --user
     ("python3", "-m pip list --user --outdated --format=json *",
      json.dumps([{"name": "Requests", "version": "2.31.0", "latest_version": "2.32.3"}]), 0),
+
+    ("python3", "-m pip cache dir", "{root}/pip-cache\n", 0),
+    ("npm", "config get cache", "{root}/npm-cache\n", 0),
+    ("brew", "cleanup -n", "Would remove: {root}/brew-cache/gh--2.50.0.bottle.tar.gz\n"
+                           "==> This operation would free approximately 12.5MB of disk space.\n", 0),
+    ("brew", "--cache", "{root}/brew-cache\n", 0),
 
     # ------------------------------------------------------------------ npm
     ("npm", "root -g", "{root}/npm-global\n", 0),

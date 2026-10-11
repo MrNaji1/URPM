@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import os
 
-from .base import UNIVERSAL, Action, Details, Package, Source, apply_updates, parse_fields, run
+from .base import (UNIVERSAL, Action, Cleanup, Details, Package, Source, apply_updates,
+                   parse_fields, run)
 
 SNAP_DIR = "/var/lib/snapd/snaps"
 DESKTOP_DIR = "/var/lib/snapd/desktop/applications"
@@ -29,6 +30,16 @@ def parse_snap_list(text: str) -> list[Package]:
             ident=f"{name}_{rev}",
         ))
     return packages
+
+
+def parse_disabled_revisions(text: str) -> list[tuple[str, str]]:
+    """`snap list --all`: (name, revision) of every disabled (old, kept-for-rollback) revision."""
+    found = []
+    for line in text.splitlines()[1:]:
+        parts = line.split()
+        if len(parts) >= 6 and "disabled" in parts[5].split(","):
+            found.append((parts[0], parts[2]))
+    return found
 
 
 def parse_refresh_list(text: str) -> dict[str, str]:
@@ -88,3 +99,28 @@ class SnapSource(Source):
     def check_updates(self, packages: list[Package]) -> int:
         updates = parse_refresh_list(run("snap", "refresh", "--list", timeout=60))
         return apply_updates(packages, updates)
+
+    def desktop_ids(self, pkg: Package) -> list[str]:
+        try:
+            return sorted(e for e in os.listdir(DESKTOP_DIR) if e.startswith(f"{pkg.name}_"))
+        except OSError:
+            return []
+
+    def cleanups(self, packages: list[Package]) -> list[Cleanup]:
+        old = parse_disabled_revisions(run("snap", "list", "--all", "--unicode=never",
+                                           "--color=never"))
+        if not old:
+            return []
+        size = 0
+        for name, rev in old:
+            try:
+                size += os.path.getsize(os.path.join(SNAP_DIR, f"{name}_{rev}.snap"))
+            except OSError:
+                pass
+        return [Cleanup(
+            "snap-old-revisions", "Old Snap versions",
+            "Snap keeps the previous version of every app so it can roll back. These old "
+            "copies aren't running and can go.",
+            self.label, size, [f"{name} (revision {rev})" for name, rev in old],
+            [Action(["snap", "remove", name, f"--revision={rev}"], root=True)
+             for name, rev in old])]

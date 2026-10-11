@@ -11,16 +11,17 @@ from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
 from urpm.sources import human_size  # noqa: E402
 from urpm.ui.widgets import (avatar_class, clear, format_date, label, pill_classes,  # noqa: E402
-                             short_label)
+                             short_label, show_icon)
 
 MAX_FILES_SHOWN = 3000
+MAX_NEEDED_BY_SHOWN = 40
 
 
 class DetailsPanel(Gtk.Stack):
     """Shows one package. The buttons call back into the window, which owns the actions."""
 
     def __init__(self, on_open, on_update, on_remove, on_copy_command, on_copy_name):
-        super().__init__(css_classes=["details"], width_request=350,
+        super().__init__(css_classes=["details"], width_request=350, hexpand=False,
                          transition_type=Gtk.StackTransitionType.CROSSFADE)
         self.item = None
         self.launcher: list[str] | None = None
@@ -37,6 +38,8 @@ class DetailsPanel(Gtk.Stack):
         inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10,
                         css_classes=["details-inner"])
         top = Gtk.Box(spacing=14)
+        self.icon = Gtk.Image(pixel_size=64, valign=Gtk.Align.START, css_classes=["app-icon"])
+        top.append(self.icon)
         self.avatar = label("", "avatar", "big", valign=Gtk.Align.START)
         top.append(self.avatar)
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER,
@@ -81,6 +84,12 @@ class DetailsPanel(Gtk.Stack):
         self.more = Gtk.Grid(column_spacing=14, row_spacing=6)
         inner.append(self.more)
 
+        self.needed_heading = label("NEEDED BY", "section-heading", xalign=0)
+        inner.append(self.needed_heading)
+        self.needed_by = label("", xalign=0, wrap=True, selectable=True,
+                               wrap_mode=Pango.WrapMode.WORD_CHAR)
+        inner.append(self.needed_by)
+
         inner.append(label("FILES", "section-heading", xalign=0))
         self.files_button = self._button(inner, "Show files", "soft", self.load_files,
                                          small=True)
@@ -113,6 +122,9 @@ class DetailsPanel(Gtk.Stack):
         pkg, src = item.pkg, item.source
         self.set_visible_child_name("package")
 
+        has_icon = show_icon(self.icon, pkg.icon)
+        self.icon.set_visible(has_icon)
+        self.avatar.set_visible(not has_icon)
         self.avatar.set_label(pkg.name[:1].upper())
         self.avatar.set_css_classes(["avatar", "big", avatar_class(pkg.name)])
         self.name_label.set_label(pkg.name)
@@ -153,6 +165,8 @@ class DetailsPanel(Gtk.Stack):
         self.description.set_visible(False)
         self.more_heading.set_visible(False)
         clear(self.more)
+        self.needed_heading.set_visible(False)
+        self.needed_by.set_visible(False)
         self.files_scroller.set_visible(False)
         self.files_buffer.set_text("")
         self.files_button.set_label("Show files")
@@ -171,11 +185,15 @@ class DetailsPanel(Gtk.Stack):
                 launcher = src.launch_argv(pkg)
             except Exception:
                 launcher = None
-            GLib.idle_add(self._on_details_loaded, token, details, error, launcher)
+            try:
+                needed_by = src.required_by(pkg)
+            except Exception:
+                needed_by = None
+            GLib.idle_add(self._on_details_loaded, token, details, error, launcher, needed_by)
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _on_details_loaded(self, token, details, error, launcher) -> bool:
+    def _on_details_loaded(self, token, details, error, launcher, needed_by=None) -> bool:
         if token != self._token:
             return GLib.SOURCE_REMOVE  # the user already picked something else
         self.spinner.stop()
@@ -188,6 +206,10 @@ class DetailsPanel(Gtk.Stack):
             self._fill_grid(self.more, details.fields)
         self.launcher = launcher
         self.open_button.set_visible(bool(launcher))
+        text = describe_needed_by(needed_by, self.item.pkg.explicit if self.item else True)
+        self.needed_heading.set_visible(text is not None)
+        self.needed_by.set_visible(text is not None)
+        self.needed_by.set_label(text or "")
         return GLib.SOURCE_REMOVE
 
     @staticmethod
@@ -231,3 +253,18 @@ class DetailsPanel(Gtk.Stack):
         self.files_buffer.set_text(text)
         self.files_scroller.set_visible(True)
         return GLib.SOURCE_REMOVE
+
+
+def describe_needed_by(names: list[str] | None, explicit: bool) -> str | None:
+    """'Why is this installed?' in a sentence, or None when the source can't tell."""
+    if names is None:
+        return None
+    if not names:
+        if explicit:
+            return "Nothing else installed needs this."
+        return ("Nothing installed needs this any more, so it can probably be removed "
+                "(see Cleanup).")
+    shown = ", ".join(names[:MAX_NEEDED_BY_SHOWN])
+    if len(names) > MAX_NEEDED_BY_SHOWN:
+        shown += f" … and {len(names) - MAX_NEEDED_BY_SHOWN} more"
+    return f"{len(names)} installed package{'s' if len(names) != 1 else ''}: {shown}"

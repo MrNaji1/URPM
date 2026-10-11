@@ -16,15 +16,21 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
+from urpm import cleanup, icons  # noqa: E402
+from urpm.duplicates import find_duplicates  # noqa: E402
 from urpm.export import render_export  # noqa: E402
 from urpm.sources import Package, Source, available_sources, human_size  # noqa: E402
 from urpm.sources.base import UnsafeCommand  # noqa: E402
 from urpm.ui import theme  # noqa: E402
+from urpm.ui.cleanup_page import CleanupPage  # noqa: E402
 from urpm.ui.details import DetailsPanel  # noqa: E402
-from urpm.ui.dialogs import (CommandDialog, ConfirmLaunchDialog,  # noqa: E402
-                             ConfirmRemoveDialog, can_run, choose_export_file, launch)
+from urpm.ui.dialogs import (CommandDialog, ConfirmCleanupDialog,  # noqa: E402
+                             ConfirmLaunchDialog, ConfirmRemoveDialog, can_run,
+                             choose_export_file, launch)
+from urpm.ui.duplicates_page import DuplicatesPage  # noqa: E402
 from urpm.ui.settings import SettingsWindow  # noqa: E402
-from urpm.ui.sidebar import ALL, RECENT, UPDATES, Sidebar, recent_cutoff  # noqa: E402
+from urpm.ui.sidebar import (ALL, CLEANUP, DUPLICATES, RECENT, TOOL_VIEWS,  # noqa: E402
+                             UPDATES, Sidebar, recent_cutoff)
 from urpm.ui.table import PackageItem, PackageTable  # noqa: E402
 from urpm.ui.widgets import accessible_name, label  # noqa: E402
 
@@ -58,6 +64,12 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self._keep_selected = None
         self._last_checked: float | None = None
         self._recent_cutoff = recent_cutoff()
+        self.cleanups: list = []             # what the Cleanup centre found
+        self.cleanup_errors: list[str] = []
+        self._scanning = False
+        self._scanned = False
+        self.duplicates: list = []
+        self._duplicates_for = -1  # the package list version they were found for
 
         self.sidebar = Sidebar(self._on_view_selected, self._on_explicit_toggled)
         self.packages = PackageTable(self._in_view, self._on_row_activated,
@@ -67,6 +79,8 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self.details = DetailsPanel(on_open=self._on_open, on_update=self._on_update,
                                     on_remove=self._on_remove, on_copy_command=self._on_copy_remove,
                                     on_copy_name=self._on_copy_name)
+        self.cleanup_page = CleanupPage(self._review_cleanup, self.scan_cleanups)
+        self.duplicates_page = DuplicatesPage(self._remove_item, self._show_item)
         self._build_header()
         self._build_body()
         self._install_actions()
@@ -204,6 +218,8 @@ class UrpmWindow(Gtk.ApplicationWindow):
         for widget in (self.empty_emoji, self.empty_title, self.empty_hint):
             empty.append(widget)
         self.content.add_named(empty, "empty")
+        self.content.add_named(self.cleanup_page, CLEANUP)
+        self.content.add_named(self.duplicates_page, DUPLICATES)
         main.append(self.content)
 
         self.status = label("", "status", xalign=0)
@@ -231,8 +247,10 @@ class UrpmWindow(Gtk.ApplicationWindow):
         return GLib.SOURCE_REMOVE
 
     def _sync_details_visibility(self) -> None:
-        # On small windows the empty "Pick a package" panel isn't worth the space.
-        self.details.set_visible(self._layout_mode == 0 or self._selected() is not None)
+        # Tool pages don't need it, and on small windows the empty "Pick a package" panel
+        # isn't worth the space.
+        self.details.set_visible(self.view not in TOOL_VIEWS and
+                                 (self._layout_mode == 0 or self._selected() is not None))
 
     def _save_window_state(self, *_):
         width, height = self.get_default_size()
@@ -256,12 +274,18 @@ class UrpmWindow(Gtk.ApplicationWindow):
     def _load_worker(self, load_id: int) -> None:
         def load(src: Source):
             try:
-                return src, src.list_packages(), None
+                packages = src.list_packages()
             except Exception as exc:  # a broken source shouldn't take down the rest
                 return src, [], str(exc)
+            icons.assign_icons(src, packages, icon_index)
+            return src, packages, None
 
         sources = available_sources()
         GLib.idle_add(self._on_load_started, load_id, sources)
+        try:
+            icon_index = icons.build_index()
+        except Exception:  # icons are a nicety; letters work fine
+            icon_index = {}
         # Hand each package manager's results to the UI as soon as it finishes, so one
         # slow source (say, a hung snapd) doesn't hold back all the others.
         with ThreadPoolExecutor(max_workers=max(1, len(sources))) as pool:
@@ -321,7 +345,64 @@ class UrpmWindow(Gtk.ApplicationWindow):
         elif not self.items:
             self.show_toast("No package managers found on this system")
         self.check_updates()
+        self.scan_cleanups()
         return GLib.SOURCE_REMOVE
+
+    # ---------------------------------------------------------------- cleanup centre
+
+    def scan_cleanups(self) -> None:
+        if self._scanning or self._loading:
+            return
+        self._scanning = True
+        self.cleanup_page.show_scanning()
+        by_source: dict[Source, list[Package]] = {}
+        for item in self.items:
+            by_source.setdefault(item.source, []).append(item.pkg)
+        for src in self.sources:  # a source with no packages can still have caches
+            by_source.setdefault(src, [])
+
+        def worker():
+            found, errors = cleanup.scan(by_source)
+            GLib.idle_add(self._on_cleanups_scanned, found, errors)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_cleanups_scanned(self, found, errors) -> bool:
+        self._scanning = False
+        self._scanned = True
+        self.cleanups, self.cleanup_errors = found, errors
+        self.cleanup_page.show_results(found, errors)
+        self._refresh_view(rebuild_sidebar=True)
+        return GLib.SOURCE_REMOVE
+
+    def _tool_badges(self) -> dict[str, str]:
+        if not self._scanned or self._scanning and not self.cleanups:
+            cleanup_badge = "…"
+        else:
+            total = sum(c.size for c in self.cleanups)
+            cleanup_badge = human_size(total) if total else ("0" if not self.cleanups else "✓")
+        return {CLEANUP: cleanup_badge, DUPLICATES: f"{len(self.duplicates):,}"}
+
+    def _review_cleanup(self, item) -> None:
+        try:
+            cleanup.check(item)
+        except UnsafeCommand as exc:
+            self.show_toast(f"🛑 {exc}")
+            return
+
+        def confirmed():
+            self._run_action(f"Cleaning up: {item.title}…", list(item.actions),
+                             "🧹 Cleaned up" + (f", {human_size(item.size)} freed"
+                                                if item.size else ""))
+
+        ConfirmCleanupDialog(self, item, confirmed).present()
+
+    def _show_item(self, item: PackageItem) -> None:
+        """Jump from a tool page to a package in the list."""
+        self.search.set_text("")
+        self.view = ALL
+        self._refresh_view(rebuild_sidebar=True)
+        self.packages.select_key(item.key, clear_if_missing=False)
 
     def check_updates(self) -> None:
         if self._checking_updates or not self.items:
@@ -373,6 +454,8 @@ class UrpmWindow(Gtk.ApplicationWindow):
 
     def _in_view(self, item: PackageItem) -> bool:
         view = self.sidebar.view
+        if view in TOOL_VIEWS:
+            view = ALL  # the list behind a tool page shows everything
         if view == UPDATES:
             if not item.pkg.update:
                 return False
@@ -386,7 +469,14 @@ class UrpmWindow(Gtk.ApplicationWindow):
     def _refresh_view(self, rebuild_sidebar: bool = False) -> None:
         self._recent_cutoff = recent_cutoff()
         if rebuild_sidebar:
-            self.sidebar.populate(self.items, self.sources, self.errors)
+            if self._duplicates_for != self.packages.version:  # only when packages changed
+                self._duplicates_for = self.packages.version
+                self.duplicates = find_duplicates(self.items)
+                self.duplicates_page.show_groups(self.duplicates)
+            self.sidebar.populate(self.items, self.sources, self.errors, self._tool_badges())
+        on_tool_page = self.view in TOOL_VIEWS
+        self.stats.set_visible(not on_tool_page)
+        self._sync_details_visibility()
         self.packages.refilter_view()
         self._update_stats()
         self._update_banner()
@@ -415,6 +505,10 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self.stat_labels["updates"][0].set_label("…" if self._checking_updates else f"{updates:,}")
 
     def _update_status(self) -> None:
+        if self.view in TOOL_VIEWS:
+            self.content.set_visible_child_name(self.view)
+            self.status.set_label("")
+            return
         if not self.items:
             if not self._loading:
                 self.status.set_label("")
@@ -501,8 +595,10 @@ class UrpmWindow(Gtk.ApplicationWindow):
 
     def _on_remove(self, *_) -> None:
         item = self._selected()
-        if not item:
-            return
+        if item:
+            self._remove_item(item)
+
+    def _remove_item(self, item: PackageItem) -> None:
         try:
             action = item.source.safe_remove_action(item.pkg)
         except UnsafeCommand as exc:
