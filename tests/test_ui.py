@@ -237,7 +237,8 @@ class WindowTests(unittest.TestCase):
         with mock.patch.object(theme, "save_prefs") as save, \
                 mock.patch.object(theme, "load_prefs", return_value={"dark": False, "x": 1}):
             window = SettingsWindow(self.win, app_theme)
-            self.assertEqual(set(window._cards), {"cotton-candy", "midnight", "gotham"})
+            self.assertEqual(set(window._cards),
+                             {"cotton-candy", "midnight", "gotham", "matcha", "aurora"})
             window.choose("gotham")
         self.assertEqual(app_theme.current.id, "gotham")
         self.assertTrue(Gtk.Settings.get_default().props.gtk_application_prefer_dark_theme)

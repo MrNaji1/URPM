@@ -48,16 +48,28 @@ can show you the whole picture.
 | 📂 **File lists** | See which files a package put on your system. |
 | 📊 **Stats** | Package count, disk usage, how many you installed, and pending updates. |
 | 📤 **Export** | Save the current view as CSV, JSON or plain text. |
-| 🎨 **Themes** | Pick from 🍬 Cotton Candy, 🌙 Midnight or 🦇 Gotham (black and bat-signal yellow) in Settings. |
+| 🎨 **Themes** | Five themes in Settings: 🍬 Cotton Candy, 🌙 Midnight, 🦇 Gotham, 🍵 Matcha and 🌌 Aurora. |
 | 📐 **Fits small screens** | Columns tuck away on narrower windows; works down to ~730 px wide. |
 | ⌨️ **Keyboard friendly** | `Ctrl+F` search, `Ctrl+R` reload, `Ctrl+U` updates, `Ctrl+E` export, `Delete` to remove. |
 
 <div align="center">
-<img src="docs/screenshots/gotham-theme.png" alt="The Updates view in the Gotham theme: near-black with yellow highlights" width="860">
-<br><br>
-<img src="docs/screenshots/theme-picker.png" alt="The theme picker in Settings, showing Cotton Candy, Midnight and Gotham" width="560">
-<br><br>
 <img src="docs/screenshots/remove-dialog.png" alt="Before removing GIMP, URPM warns that two other packages will be removed too" width="480">
+</div>
+
+## Themes
+
+Open **Settings** (the brush button, or `Ctrl+,`) and pick the look you like. Your choice
+is remembered.
+
+| | |
+|:-:|:-:|
+| <img src="docs/screenshots/gotham-theme.png" alt="Gotham theme: near-black with bat-signal yellow" width="420"><br>🦇 **Gotham**: near-black with bat-signal yellow | <img src="docs/screenshots/aurora-theme.png" alt="Aurora theme: deep navy with teal" width="420"><br>🌌 **Aurora**: deep navy with northern-lights teal |
+| <img src="docs/screenshots/matcha-theme.png" alt="Matcha theme: sage green on white" width="420"><br>🍵 **Matcha**: calm sage green, clean and minimal | <img src="docs/screenshots/main-light.png" alt="Cotton Candy theme: soft pink and pastel" width="420"><br>🍬 **Cotton Candy**: the original soft pink |
+
+<div align="center">
+<img src="docs/screenshots/theme-picker.png" alt="The theme picker in Settings with all five themes" width="520">
+<br><sub>🌙 <b>Midnight</b>, dark plum with pink, is in there too.</sub>
+
 </div>
 
 ## Supported package managers

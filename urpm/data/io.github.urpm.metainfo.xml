@@ -25,6 +25,9 @@
   <url type="bugtracker">https://github.com/MrNaji1/URPM/issues</url>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="1.3.0" date="2026-10-11">
+      <description><p>Two new themes: Matcha (calm sage green) and Aurora (deep navy with teal).</p></description>
+    </release>
     <release version="1.2.0" date="2026-10-11">
       <description><p>New Settings window with themes: Cotton Candy, Midnight and the new black-and-yellow Gotham theme.</p></description>
     </release>

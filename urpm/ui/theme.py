@@ -103,6 +103,39 @@ GOTHAM = _register(ThemeDef(
         "avatar4_bg": "#23232a", "avatar4_fg": "#d7d9e0", "avatar5_bg": "#2a2716", "avatar5_fg": "#ffe08a",
     }))
 
+MATCHA = _register(ThemeDef(
+    "matcha", "Matcha", "🍵", "Calm sage green on soft white. Clean and minimal.", dark=False,
+    colors={
+        "bg": "#f4f7f1", "surface": "#ffffff", "sidebar": "#ecf1e7", "header": "#f0f4ec",
+        "fg": "#22302a", "dim": "#6c7b72", "border": "#dde6d7", "chip": "#e6ede0",
+        "hover": "#eef3ea", "selected": "#d5e9cf", "accent": "#3f7f4c", "accent_fg": "#ffffff",
+        "track": "#e0e8da", "shadow": "#5f7d66",
+        "card_pink": "#e6f2e1", "card_lilac": "#e8eef4", "card_mint": "#e0f1ec",
+        "card_peach": "#f5f0e1",
+        **_LIGHT_PILLS,
+        "update_bg": "#f3ecd0", "update_fg": "#7a5c0c", "danger": "#d64545",
+        "avatar0_bg": "#dcefd6", "avatar0_fg": "#2f6b3b", "avatar1_bg": "#e2e9f2", "avatar1_fg": "#3b5878",
+        "avatar2_bg": "#d6eee7", "avatar2_fg": "#1f6b58", "avatar3_bg": "#f1e9d4", "avatar3_fg": "#7a5c1c",
+        "avatar4_bg": "#e6ece2", "avatar4_fg": "#4d5d52", "avatar5_bg": "#eef0d2", "avatar5_fg": "#5f6418",
+    }))
+
+AURORA = _register(ThemeDef(
+    "aurora", "Aurora", "🌌", "Deep navy with northern-lights teal and violet.", dark=True,
+    colors={
+        "bg": "#0e1120", "surface": "#161a2d", "sidebar": "#111527", "header": "#111527",
+        "fg": "#e5e8f6", "dim": "#8890b5", "border": "#252b47", "chip": "#1e2440",
+        "hover": "#1b2040", "selected": "#153b45", "accent": "#4fd1c5", "accent_fg": "#06201e",
+        "track": "#252b47", "shadow": "#000000",
+        "card_pink": "#1f1b38", "card_lilac": "#191f3c", "card_mint": "#112e30",
+        "card_peach": "#261d36",
+        **_DARK_PILLS,
+        "update_bg": "#123a3a", "update_fg": "#6ee7d9", "gray_bg": "#1e2440", "gray_fg": "#b8bedc",
+        "warning": "#f6b26b", "danger": "#f0606a", "danger_fg": "#200a0c",
+        "avatar0_bg": "#13353a", "avatar0_fg": "#6ee7d9", "avatar1_bg": "#2a2350", "avatar1_fg": "#c4b5fd",
+        "avatar2_bg": "#183049", "avatar2_fg": "#93c5fd", "avatar3_bg": "#33224a", "avatar3_fg": "#f0abfc",
+        "avatar4_bg": "#1e2440", "avatar4_fg": "#cbd2f0", "avatar5_bg": "#16383a", "avatar5_fg": "#a7f3d0",
+    }))
+
 DEFAULT_LIGHT, DEFAULT_DARK = COTTON_CANDY.id, MIDNIGHT.id
 
 

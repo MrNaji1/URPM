@@ -42,10 +42,11 @@ on your screen, and a URPM window you already have open isn't touched. CI does t
 
 CSV quoting and columns, JSON, plain text, file extension detection (case-insensitive).
 
-### Themes (`tests/test_theme.py`, 5 tests, no windows)
+### Themes (`tests/test_theme.py`, 6 tests, no windows)
 
 Every theme defines every colour the stylesheet uses, all colours are valid hex,
-Gotham is near-black with yellow, the starting theme is picked correctly (saved choice,
+all five themes are registered (Gotham is near-black with yellow), text stays readable
+(WCAG contrast: body text 7:1, update badges 4.5:1, bold button labels 3:1), the starting theme is picked correctly (saved choice,
 old 1.x light/dark setting, or the system), and the stylesheet includes previews of every
 theme with no hardcoded colours.
 
@@ -88,7 +89,7 @@ Run through this before a release, on a real desktop.
 - [x] Sorting by each column, both directions (versions sort naturally)
 - [x] Search: typing, deleting, `Esc` to clear, typing without clicking the box first
 - [x] Just mine: counts in the sidebar and stat cards change
-- [x] Each theme in Settings looks right (checked with screenshots of Cotton Candy and Gotham)
+- [x] Each theme in Settings looks right (checked with screenshots of all five themes)
 - [x] The chosen theme is remembered after restart, and old light/dark settings carry over
 - [x] Window size is remembered after restart
 - [x] Small windows: ~1200 px hides *Updated*, ~960 px also hides *Source* and the empty details panel
