@@ -229,6 +229,29 @@ class WindowTests(unittest.TestCase):
         self.assertTrue(saved["dark"])  # other preferences are kept
         self.assertEqual(set(saved["window"]), {"width", "height", "maximized"})
 
+    def test_settings_window_switches_theme(self):
+        from urpm.ui import theme
+        from urpm.ui.settings import SettingsWindow
+        app_theme = self.win.get_application().theme
+        start = app_theme.current.id
+        with mock.patch.object(theme, "save_prefs") as save, \
+                mock.patch.object(theme, "load_prefs", return_value={"dark": False, "x": 1}):
+            window = SettingsWindow(self.win, app_theme)
+            self.assertEqual(set(window._cards), {"cotton-candy", "midnight", "gotham"})
+            window.choose("gotham")
+        self.assertEqual(app_theme.current.id, "gotham")
+        self.assertTrue(Gtk.Settings.get_default().props.gtk_application_prefer_dark_theme)
+        self.assertTrue(window._cards["gotham"].has_css_class("active"))
+        self.assertFalse(window._cards[start].has_css_class("active"))
+        saved = save.call_args.args[0]
+        self.assertEqual(saved["theme"], "gotham")
+        self.assertNotIn("dark", saved)  # the old light/dark key is replaced
+        self.assertEqual(saved["x"], 1)  # other settings are kept
+        with mock.patch.object(theme, "save_prefs"), mock.patch.object(theme, "load_prefs",
+                                                                        return_value={}):
+            window.choose(start)
+        window.destroy()
+
     def test_multiple_actions_stop_at_first_failure(self):
         from urpm.ui.dialogs import CommandDialog
         done = []

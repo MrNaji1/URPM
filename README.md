@@ -48,12 +48,14 @@ can show you the whole picture.
 | 📂 **File lists** | See which files a package put on your system. |
 | 📊 **Stats** | Package count, disk usage, how many you installed, and pending updates. |
 | 📤 **Export** | Save the current view as CSV, JSON or plain text. |
-| 🌙 **Light and dark** | Follows your system theme and remembers your choice. |
+| 🎨 **Themes** | Pick from 🍬 Cotton Candy, 🌙 Midnight or 🦇 Gotham (black and bat-signal yellow) in Settings. |
 | 📐 **Fits small screens** | Columns tuck away on narrower windows; works down to ~730 px wide. |
 | ⌨️ **Keyboard friendly** | `Ctrl+F` search, `Ctrl+R` reload, `Ctrl+U` updates, `Ctrl+E` export, `Delete` to remove. |
 
 <div align="center">
-<img src="docs/screenshots/updates-dark.png" alt="The Updates view in dark mode" width="860">
+<img src="docs/screenshots/gotham-theme.png" alt="The Updates view in the Gotham theme: near-black with yellow highlights" width="860">
+<br><br>
+<img src="docs/screenshots/theme-picker.png" alt="The theme picker in Settings, showing Cotton Candy, Midnight and Gotham" width="560">
 <br><br>
 <img src="docs/screenshots/remove-dialog.png" alt="Before removing GIMP, URPM warns that two other packages will be removed too" width="480">
 </div>
@@ -295,6 +297,7 @@ python3 -m urpm
 - **🗑️ Remove** first shows a preview of everything that would be removed. Nothing happens
   until you confirm and enter your password.
 - **Copy uninstall command** if you'd rather run it yourself in a terminal.
+- **🎨 Settings** (the brush button, or `Ctrl+,`) lets you pick a theme.
 - **Menu → Export list…** saves the current view. Pick `.csv`, `.json` or `.txt` as the
   file extension.
 
@@ -308,6 +311,7 @@ python3 -m urpm
 | `Ctrl+R` / `F5` | reload packages |
 | `Ctrl+U` | check for updates |
 | `Ctrl+E` | export list |
+| `Ctrl+,` | settings and themes |
 | `Ctrl+Q` | quit |
 
 ## Is it safe?
@@ -354,7 +358,8 @@ urpm/
     app.py      Gtk.Application, shortcuts, command-line flags
     window.py   the main window
     dialogs.py  remove confirmation, command output, export
-    theme.py    light/dark palettes
+    theme.py    themes (colour palettes) and saved preferences
+    settings.py the Settings window and theme picker
     style.css   all the cuteness
   export.py     CSV / JSON / text export
   data/         icon, .desktop entry, AppStream metainfo

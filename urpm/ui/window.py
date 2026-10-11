@@ -19,6 +19,7 @@ from urpm.sources import (KIND_LABELS, Package, Source, available_sources,  # no
 from urpm.sources.base import version_key  # noqa: E402
 from urpm.export import render_export  # noqa: E402
 from urpm.ui import theme  # noqa: E402
+from urpm.ui.settings import SettingsWindow  # noqa: E402
 from urpm.ui.dialogs import (CommandDialog, ConfirmRemoveDialog, can_run,  # noqa: E402
                              choose_export_file, launch)
 
@@ -146,6 +147,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
         section.append("Export list…", "win.export")
         menu.append_section(None, section)
         section = Gio.Menu()
+        section.append("Settings…", "win.settings")
         section.append("Keyboard shortcuts", "win.shortcuts")
         section.append("About URPM", "app.about")
         section.append("Quit", "app.quit")
@@ -153,10 +155,10 @@ class UrpmWindow(Gtk.ApplicationWindow):
         header.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu,
                                        tooltip_text="Menu"))
 
-        self.theme_button = Gtk.Button(tooltip_text="Switch light / dark")
-        self.theme_button.connect("clicked", self._on_toggle_theme)
+        self.theme_button = Gtk.Button(icon_name="applications-graphics-symbolic",
+                                       tooltip_text="Themes (Ctrl+,)",
+                                       action_name="win.settings")
         header.pack_end(self.theme_button)
-        self._sync_theme_icon()
 
         self.refresh_button = Gtk.Button(icon_name="view-refresh-symbolic",
                                          tooltip_text="Reload packages (Ctrl+R)",
@@ -894,7 +896,8 @@ class UrpmWindow(Gtk.ApplicationWindow):
                                ("search", lambda *_: self.search.grab_focus()),
                                ("check-updates", lambda *_: self.check_updates()),
                                ("export", lambda *_: self._on_export()),
-                               ("shortcuts", lambda *_: self._on_shortcuts())):
+                               ("shortcuts", lambda *_: self._on_shortcuts()),
+                               ("settings", lambda *_: self._on_settings())):
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", callback)
             self.add_action(action)
@@ -928,14 +931,8 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self._populate_sidebar()
         self._refresh_view()
 
-    def _on_toggle_theme(self, _button) -> None:
-        self.get_application().theme.toggle()
-        self._sync_theme_icon()
-
-    def _sync_theme_icon(self) -> None:
-        dark = self.get_application().theme.dark
-        self.theme_button.set_icon_name("weather-clear-symbolic" if dark
-                                        else "weather-clear-night-symbolic")
+    def _on_settings(self) -> None:
+        SettingsWindow(self, self.get_application().theme).present()
 
     def _on_open(self, _button) -> None:
         item = self._selected()
@@ -1035,7 +1032,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
         rows = (("Type anywhere", "Search"), ("Esc", "Clear search"), ("Ctrl+F", "Focus search"),
                 ("Enter / double-click", "Open the app"), ("Delete", "Remove package…"),
                 ("Ctrl+R / F5", "Reload packages"), ("Ctrl+U", "Check for updates"),
-                ("Ctrl+E", "Export list"), ("Ctrl+Q", "Quit"))
+                ("Ctrl+E", "Export list"), ("Ctrl+,", "Settings and themes"), ("Ctrl+Q", "Quit"))
         dialog = Gtk.Window(transient_for=self, modal=True, title="Keyboard shortcuts",
                             css_classes=["urpm", "dialog-window"], resizable=False)
         grid = Gtk.Grid(column_spacing=24, row_spacing=10, css_classes=["dialog-body"])

@@ -42,7 +42,14 @@ on your screen, and a URPM window you already have open isn't touched. CI does t
 
 CSV quoting and columns, JSON, plain text, file extension detection (case-insensitive).
 
-### Real window (`tests/test_ui.py`, 17 tests, runs GTK 4)
+### Themes (`tests/test_theme.py`, 5 tests, no windows)
+
+Every theme defines every colour the stylesheet uses, all colours are valid hex,
+Gotham is near-black with yellow, the starting theme is picked correctly (saved choice,
+old 1.x light/dark setting, or the system), and the stylesheet includes previews of every
+theme with no hardcoded colours.
+
+### Real window (`tests/test_ui.py`, 18 tests, runs GTK 4)
 
 These drive the real `UrpmWindow` with a fake package source and a deliberately broken one.
 
@@ -61,6 +68,7 @@ These drive the real `UrpmWindow` with a fake package source and a deliberately 
 | double-click | opens apps, and shows a friendly message for non-apps |
 | compact layouts | columns hide, empty details panel hides on small windows |
 | window size | saved on close, other preferences kept |
+| settings | picking a theme applies it, marks its card, saves it and keeps other settings |
 | remove preview | "Remove 3 packages", destructive button not focused, confirm callback |
 | commands | output streamed, failure reported, multi-step stops at the first failure |
 
@@ -80,7 +88,8 @@ Run through this before a release, on a real desktop.
 - [x] Sorting by each column, both directions (versions sort naturally)
 - [x] Search: typing, deleting, `Esc` to clear, typing without clicking the box first
 - [x] Just mine: counts in the sidebar and stat cards change
-- [x] Light/dark switch, and the choice is remembered after restart
+- [x] Each theme in Settings looks right (checked with screenshots of Cotton Candy and Gotham)
+- [x] The chosen theme is remembered after restart, and old light/dark settings carry over
 - [x] Window size is remembered after restart
 - [x] Small windows: ~1200 px hides *Updated*, ~960 px also hides *Source* and the empty details panel
 

@@ -211,12 +211,12 @@ label.avatar.big {
   border-radius: 22px;
   font-size: 1.9em;
 }
-label.avatar-0 { background: #ffd6e7; color: #a02d63; }
-label.avatar-1 { background: #e3dbff; color: #5439a8; }
-label.avatar-2 { background: #d4f3e5; color: #1f7453; }
-label.avatar-3 { background: #ffe5cc; color: #9a5316; }
-label.avatar-4 { background: #d7ecff; color: #2a6497; }
-label.avatar-5 { background: #fff3b8; color: #85680a; }
+label.avatar-0 { background: @urpm_avatar0_bg; color: @urpm_avatar0_fg; }
+label.avatar-1 { background: @urpm_avatar1_bg; color: @urpm_avatar1_fg; }
+label.avatar-2 { background: @urpm_avatar2_bg; color: @urpm_avatar2_fg; }
+label.avatar-3 { background: @urpm_avatar3_bg; color: @urpm_avatar3_fg; }
+label.avatar-4 { background: @urpm_avatar4_bg; color: @urpm_avatar4_fg; }
+label.avatar-5 { background: @urpm_avatar5_bg; color: @urpm_avatar5_fg; }
 
 /* source pills */
 label.pill {
@@ -334,6 +334,39 @@ textview.log, textview.log > text {
 }
 textview.log { padding: 10px 12px; }
 scrolledwindow.log-scroller { border-radius: 14px; }
+
+/* ---------- settings ---------- */
+
+label.settings-heading {
+  font-size: 0.78em;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: @urpm_dim;
+}
+
+button.theme-card {
+  background: @urpm_chip;
+  border: 2px solid transparent;
+  border-radius: 18px;
+  padding: 10px;
+  box-shadow: none;
+  color: @urpm_fg;
+}
+button.theme-card:hover { border-color: alpha(@urpm_accent, 0.5); }
+button.theme-card.active { border-color: @urpm_accent; background: @urpm_selected; }
+label.theme-name { font-weight: 800; }
+label.theme-check { color: @urpm_accent; font-weight: 900; }
+
+/* mini preview of a theme: background, a card, an accent pill and a text line */
+.theme-preview {
+  border-radius: 12px;
+  min-height: 64px;
+  padding: 8px;
+  border: 1px solid alpha(black, 0.15);
+}
+.theme-preview .mini-card { border-radius: 8px; min-height: 30px; }
+.theme-preview .mini-accent { border-radius: 999px; min-height: 10px; min-width: 36px; }
+.theme-preview .mini-text { border-radius: 999px; min-height: 6px; min-width: 48px; }
 
 /* ---------- misc ---------- */
 

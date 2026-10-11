@@ -41,6 +41,7 @@ class UrpmApp(Gtk.Application):
         self.set_accels_for_action("win.search", ["<Ctrl>f"])
         self.set_accels_for_action("win.check-updates", ["<Ctrl>u"])
         self.set_accels_for_action("win.export", ["<Ctrl>e"])
+        self.set_accels_for_action("win.settings", ["<Ctrl>comma"])
 
     def do_activate(self):
         window = self.props.active_window or UrpmWindow(self)
