@@ -117,15 +117,22 @@ fetch() {  # fetch URL FILE
   fi
 }
 
+# github.com/OWNER/REPO/releases/latest redirects to .../releases/tag/vX.Y.Z. Following
+# that redirect avoids GitHub's API, which only allows 60 requests an hour per network
+# (easy to hit on shared office, school or mobile connections).
+latest_release_url() {
+  python3 -c 'import sys, urllib.request; print(urllib.request.urlopen(sys.argv[1], timeout=30).geturl())' \
+    "https://github.com/$1/releases/latest"
+}
+
 # Download a release tarball, check it against the release's SHA256SUMS, unpack it and
 # print the folder it unpacked to.
 download_release() {
   local repo="$1" tmp="$2" tag="${URPM_VERSION:-}"
   if [ -z "$tag" ]; then
-    fetch "https://api.github.com/repos/$repo/releases/latest" "$tmp/latest.json" \
-      || die "Couldn't reach GitHub to find the latest URPM release."
-    tag="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["tag_name"])' "$tmp/latest.json")" \
-      || die "Couldn't read the latest release from GitHub."
+    local latest
+    latest="$(latest_release_url "$repo")" || die "Couldn't reach GitHub to find the latest URPM release."
+    tag="${latest##*/}"
   fi
   [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "Unexpected release name: $tag"
   local version="${tag#v}" base="https://github.com/$repo/releases/download/$tag"

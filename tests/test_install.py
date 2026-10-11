@@ -73,6 +73,22 @@ class InstallScriptTests(unittest.TestCase):
         self.assertTrue((folder / "urpm" / "__init__.py").exists())
         self.assertIn("Checksum verified", result.stderr)
 
+    def test_latest_release_is_found_without_the_api(self):
+        """The newest version comes from the /releases/latest redirect, not the rate-limited API."""
+        holder = tempfile.TemporaryDirectory()
+        self.addCleanup(holder.cleanup)
+        script = (
+            f"source <(sed '$d' {INSTALL})\n"
+            "latest_release_url() { echo https://github.com/$1/releases/tag/v9.8.7; }\n"
+            "fetch() { echo \"$1\" >> " + holder.name + "/urls; return 1; }\n"
+            "unset URPM_VERSION\n"
+            f"download_release MrNaji1/URPM {holder.name}\n"
+        )
+        subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=False)
+        urls = Path(holder.name, "urls").read_text()
+        self.assertIn("/releases/download/v9.8.7/urpm-9.8.7.tar.gz", urls)
+        self.assertNotIn("api.github.com", INSTALL.read_text())
+
     def test_tampered_download_is_rejected(self):
         """S4: a download that doesn't match SHA256SUMS installs nothing."""
         result = self.run_download("v9.8.7", tamper=True)
