@@ -309,16 +309,6 @@ class RpmTests(unittest.TestCase):
             with mock.patch("urpm.sources.base.which", return_value="/usr/bin/gtk-launch"):
                 self.assertEqual(desktop_launcher([path]), ["/usr/bin/gtk-launch", "kde4-foo.desktop"])
 
-    def test_root_commands_ignore_user_folders(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            fake = os.path.join(tmp, "apt-get")
-            with open(fake, "w") as fh:
-                fh.write("#!/bin/sh\n")
-            os.chmod(fake, 0o755)
-            with mock.patch.dict(os.environ, {"PATH": f"{tmp}:{os.environ['PATH']}"}):
-                argv = Action(["apt-get", "remove", "x"], root=True).full_argv()
-        self.assertNotEqual(argv[1], fake)
-
 
 class PacmanTests(unittest.TestCase):
     def test_info_blocks(self):

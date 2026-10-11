@@ -15,7 +15,7 @@ on your screen, and a URPM window you already have open isn't touched. CI does t
 
 ## 1. Automated tests
 
-### Parsers and helpers (`tests/test_sources.py`, 46 tests, no GTK needed)
+### Parsers and helpers (`tests/test_sources.py`, 45 tests, no GTK needed)
 
 | Area | What's checked |
 |---|---|
