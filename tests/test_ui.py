@@ -104,12 +104,12 @@ class WindowTests(unittest.TestCase):
         cls.prefs.stop()
 
     def visible(self):
-        model = self.win.selection.get_model()
+        model = self.win.packages.selection.get_model()
         return [model.get_item(i).pkg.name for i in range(model.get_n_items())]
 
     def setUp(self):
         self.win.search.set_text("")
-        self.win.explicit_switch.set_active(False)
+        self.win.sidebar.explicit_switch.set_active(False)
         self.win.view = "all"
         self.win._refresh_view()
         spin(lambda: len(self.visible()) == 3)
@@ -125,9 +125,9 @@ class WindowTests(unittest.TestCase):
         spin(lambda: self.win.content.get_visible_child_name() == "empty")
 
     def test_just_mine_and_views(self):
-        self.win.explicit_switch.set_active(True)
+        self.win.sidebar.explicit_switch.set_active(True)
         spin(lambda: self.visible() == ["alpha", "gamma"])
-        self.win.explicit_switch.set_active(False)
+        self.win.sidebar.explicit_switch.set_active(False)
         self.win.view = "updates"
         self.win._refresh_view()
         spin(lambda: self.visible() == ["gamma"])
@@ -137,14 +137,14 @@ class WindowTests(unittest.TestCase):
 
     def test_sidebar_has_views_and_source(self):
         ids = []
-        row = self.win.source_list.get_first_child()
+        row = self.win.sidebar.source_list.get_first_child()
         while row:
             ids.append(getattr(row, "view_id", None))
             row = row.get_next_sibling()
         self.assertEqual([i for i in ids if i], ["all", "updates", "recent", "fake", "broken"])
 
     def sidebar_rows(self):
-        rows, row = {}, self.win.source_list.get_first_child()
+        rows, row = {}, self.win.sidebar.source_list.get_first_child()
         while row:
             if hasattr(row, "view_id"):
                 labels, child = [], row.get_child().get_first_child()
@@ -163,16 +163,66 @@ class WindowTests(unittest.TestCase):
 
     def test_sidebar_counts_follow_just_mine(self):
         self.assertEqual(self.sidebar_rows()["fake"][0][-1], "3")
-        self.win.explicit_switch.set_active(True)
+        self.win.sidebar.explicit_switch.set_active(True)
         self.assertEqual(self.sidebar_rows()["fake"][0][-1], "2")
         self.assertEqual(self.sidebar_rows()["all"][0][-1], "2")
 
     def test_version_sort_is_natural(self):
-        column = self.win.col_version
-        self.win.table.sort_by_column(column, Gtk.SortType.ASCENDING)
+        column = self.win.packages.col_version
+        self.win.packages.view.sort_by_column(column, Gtk.SortType.ASCENDING)
         spin(lambda: self.visible() == ["beta", "alpha", "gamma"])  # 1.9 < 1.10 < 10.0
-        self.win.table.sort_by_column(self.win.table.get_columns().get_item(0),
+        self.win.packages.view.sort_by_column(self.win.packages.view.get_columns().get_item(0),
                                       Gtk.SortType.ASCENDING)
+
+    def shown_names(self, table=None):
+        table = table or self.win.packages
+        return [item.pkg.name for item in table.shown_items()]
+
+    def test_every_column_sorts_both_ways(self):
+        table, view = self.win.packages, self.win.packages.view
+        expected = {  # alpha 1.10 (5 MB), beta 1.9 (10 B), gamma 10.0 (0 B)
+            table.col_name: ["alpha", "beta", "gamma"],
+            table.col_version: ["beta", "alpha", "gamma"],   # natural: 1.9 < 1.10 < 10.0
+            table.col_size: ["gamma", "beta", "alpha"],
+        }
+        for column, ascending in expected.items():
+            view.sort_by_column(column, Gtk.SortType.ASCENDING)
+            self.assertEqual(self.shown_names(), ascending, column.get_title())
+            view.sort_by_column(column, Gtk.SortType.DESCENDING)
+            self.assertEqual(self.shown_names(), ascending[::-1], column.get_title())
+        view.sort_by_column(table.col_name, Gtk.SortType.ASCENDING)
+
+    def test_sort_stays_right_when_packages_arrive(self):
+        """Progressive loading adds rows while sorted: ranks must be recomputed."""
+        from urpm.ui.table import PackageItem, PackageTable
+        table = PackageTable(lambda item: True, lambda item: None, lambda: None)
+        src = FakeSource()
+        table.view.sort_by_column(table.col_version, Gtk.SortType.ASCENDING)
+        table.replace_source_items("fake", [PackageItem(Package(n, v, "fake"), src)
+                                            for n, v in (("b", "2.0"), ("d", "10.0"))])
+        self.assertEqual(self.shown_names(table), ["b", "d"])
+        other = type("Other", (FakeSource,), {"id": "other", "label": "Other"})()
+        table.replace_source_items("other", [PackageItem(Package(n, v, "other"), other)
+                                             for n, v in (("a", "1.0"), ("c", "9.0"))])
+        self.assertEqual(self.shown_names(table), ["a", "b", "c", "d"])
+        table.replace_source_items("fake", [])   # a source disappears
+        self.assertEqual(self.shown_names(table), ["a", "c"])
+        table.view.sort_by_column(table.col_name, Gtk.SortType.DESCENDING)
+        self.assertEqual(self.shown_names(table), ["c", "a"])
+
+    def test_sorting_on_older_gtk(self):
+        """GTK before 4.10 can't tell us the clicked column; sorting must still be right."""
+        from urpm.ui import table as table_module
+        with mock.patch.object(table_module, "hasattr", create=True, return_value=False):
+            table = table_module.PackageTable(lambda item: True, lambda item: None, lambda: None)
+        self.assertFalse(table._direct)
+        src = FakeSource()
+        table.replace_source_items("fake", [table_module.PackageItem(Package(n, v, "fake"), src)
+                                            for n, v in (("x", "1.10"), ("y", "1.9"), ("z", "2"))])
+        table.view.sort_by_column(table.col_version, Gtk.SortType.ASCENDING)
+        self.assertEqual(self.shown_names(table), ["y", "x", "z"])
+        table.view.sort_by_column(table.col_name, Gtk.SortType.DESCENDING)
+        self.assertEqual(self.shown_names(table), ["z", "y", "x"])
 
     def test_incremental_search_stays_correct(self):
         steps = [("a", ["alpha", "beta", "gamma"]), ("al", ["alpha"]), ("alp", ["alpha"]),
@@ -198,27 +248,27 @@ class WindowTests(unittest.TestCase):
 
     def test_double_click_opens_app(self):
         with mock.patch("urpm.ui.window.launch") as launch:
-            self.win._on_row_activated(self.win.table, 0)  # alpha
+            self.win._on_row_activated(self.win.packages.shown.get_item(0))  # alpha
             spin(lambda: launch.called)
         self.assertEqual(launch.call_args.args[0], ["true", "alpha"])
         with mock.patch("urpm.ui.window.launch") as launch:
-            self.win._on_row_activated(self.win.table, 1)  # beta is a dependency, not an app
+            self.win._on_row_activated(self.win.packages.shown.get_item(1))  # beta is a dependency, not an app
             spin(lambda: "isn't an app" in self.win.toast_label.get_label())
         launch.assert_not_called()
 
     def test_compact_layouts(self):
         self.win._apply_layout(2)
-        self.assertFalse(self.win.col_updated.get_visible())
-        self.assertFalse(self.win.col_source.get_visible())
-        self.win.selection.set_selected(Gtk.INVALID_LIST_POSITION)
+        self.assertFalse(self.win.packages.col_updated.get_visible())
+        self.assertFalse(self.win.packages.col_source.get_visible())
+        self.win.packages.selection.set_selected(Gtk.INVALID_LIST_POSITION)
         self.win._layout_mode = 2
         self.win._sync_details_visibility()
         self.assertFalse(self.win.details.get_visible())  # empty panel hidden when small
-        self.win.selection.set_selected(0)
+        self.win.packages.selection.set_selected(0)
         self.assertTrue(self.win.details.get_visible())
         self.win._layout_mode = 0
         self.win._apply_layout(0)
-        self.assertTrue(self.win.col_updated.get_visible())
+        self.assertTrue(self.win.packages.col_updated.get_visible())
         self.assertTrue(self.win.details.get_visible())
 
     def test_window_size_is_saved(self):
@@ -295,7 +345,7 @@ class WindowTests(unittest.TestCase):
     def test_unsafe_package_names_are_refused_in_the_ui(self):
         """S5: a package whose name looks like an option never reaches a dialog."""
         from urpm.sources.base import UnsafeCommand
-        self.win.selection.set_selected(0)
+        self.win.packages.selection.set_selected(0)
         with mock.patch.object(FakeSource, "safe_remove_action",
                                side_effect=UnsafeCommand("refusing '-rf'")), \
                 mock.patch("urpm.ui.window.ConfirmRemoveDialog") as dialog:
@@ -349,6 +399,131 @@ class WindowTests(unittest.TestCase):
         self.assertTrue(dialog.buffer.get_text(start, end, False).rstrip().endswith("20000"))
         dialog.destroy()
 
+    def test_export_writes_the_shown_packages(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "list.txt")
+            with mock.patch("urpm.ui.window.choose_export_file",
+                            side_effect=lambda parent, save: save(path)):
+                self.win._on_export()
+            with open(path) as fh:
+                self.assertEqual([line.split("\t")[0] for line in fh], ["alpha", "beta", "gamma"])
+            self.assertIn("Exported 3", self.win.toast_label.get_label())
+            with mock.patch("urpm.ui.window.choose_export_file",
+                            side_effect=lambda parent, save: save("/proc/nope/list.csv")):
+                self.win._on_export()
+            self.assertIn("Couldn't save", self.win.toast_label.get_label())
+
+    def test_export_file_dialog(self):
+        from urpm.ui import dialogs
+        saved = []
+
+        class FakeFile:
+            def get_path(self):
+                return "/tmp/x.csv"
+
+        class FakeDialog:
+            def __init__(self, **props):
+                self.props = props
+
+            def save(self, parent, cancellable, done):
+                done(self, "result")
+
+            def save_finish(self, result):
+                return FakeFile()
+
+        with mock.patch.object(dialogs.Gtk, "FileDialog", FakeDialog, create=True):
+            dialogs.choose_export_file(self.win, saved.append)
+        self.assertEqual(saved, ["/tmp/x.csv"])
+
+    def test_copy_buttons_and_shortcuts_window(self):
+        self.win.packages.selection.set_selected(0)  # alpha
+        self.win._on_copy_name()
+        self.assertIn("Copied", self.win.toast_label.get_label())
+        self.win._on_copy_remove()
+        self.assertIn("Uninstall command copied", self.win.toast_label.get_label())
+        before = set(Gtk.Window.list_toplevels())
+        self.win._on_shortcuts()
+        opened = [w for w in Gtk.Window.list_toplevels() if w not in before]
+        self.assertEqual([w.get_title() for w in opened], ["Keyboard shortcuts"])
+        for window in opened:
+            window.destroy()
+
+    def test_update_button_runs_one_update(self):
+        names = self.shown_names()
+        self.win.packages.selection.set_selected(names.index("gamma"))
+        with mock.patch.object(self.win, "_run_action") as run:
+            self.win._on_update()
+        title, actions, _done = run.call_args.args
+        self.assertEqual((title, actions[0].argv), ("Updating gamma…", ["true", "update", "gamma"]))
+
+    def test_commands_that_cannot_run_are_copied_instead(self):
+        with mock.patch("urpm.ui.window.can_run", return_value="pkexec isn't installed"), \
+                mock.patch("urpm.ui.window.CommandDialog") as dialog:
+            self.win._run_action("Removing x…", Action(["true"]), "done")
+        dialog.assert_not_called()
+        self.assertIn("The command was copied", self.win.toast_label.get_label())
+
+    def test_update_check_errors_are_reported(self):
+        with mock.patch.object(FakeSource, "check_updates", side_effect=RuntimeError("offline")):
+            self.win.check_updates()
+            spin(lambda: not self.win._checking_updates)
+        self.assertIn("Couldn't check updates for Fake: offline", self.win.toast_label.get_label())
+        self.win.check_updates()   # restore the update badges for other tests
+        spin(lambda: not self.win._checking_updates)
+
+    def test_remove_preview_when_the_package_manager_fails_or_cannot_tell(self):
+        from urpm.ui.dialogs import ConfirmRemoveDialog
+        src, pkg = FakeSource(), Package("alpha", "1.10", "fake")
+
+        def labels(dialog):
+            found, stack = [], [dialog.sim_box]
+            while stack:
+                widget = stack.pop()
+                if isinstance(widget, Gtk.Label):
+                    found.append(widget.get_label())
+                child = widget.get_first_child()
+                while child:
+                    stack.append(child)
+                    child = child.get_next_sibling()
+            return " ".join(found)
+
+        for patch, expected in (({"side_effect": RuntimeError("locked")}, "says: locked"),
+                                ({"return_value": None}, "can't preview")):
+            with mock.patch.object(FakeSource, "simulate_remove", **patch):
+                dialog = ConfirmRemoveDialog(self.win, pkg, src, Action(["true"]), lambda: None)
+                spin(lambda d=dialog: d.confirm.get_sensitive())
+            self.assertIn(expected, labels(dialog))
+            dialog.destroy()
+
+    def test_can_run_explains_problems(self):
+        from urpm.ui.dialogs import can_run
+        self.assertIsNone(can_run(Action(["true"])))
+        self.assertIn("isn't installed", can_run(Action(["no-such-program-urpm"])))
+        with mock.patch("urpm.ui.dialogs.root_binary", return_value=None):
+            self.assertIn("pkexec", can_run(Action(["true"], root=True)))
+        with mock.patch("urpm.sources.base.shutil.which", return_value=None), \
+                mock.patch("urpm.ui.dialogs.root_binary", return_value="/usr/bin/pkexec"):
+            self.assertIn("system folder", can_run(Action(["true"], root=True)))
+
+    def test_settings_window_and_theme_toggle(self):
+        from urpm.ui import theme
+        before = set(Gtk.Window.list_toplevels())
+        app_theme = self.win.get_application().theme
+        start = app_theme.current.id
+        with mock.patch.object(theme, "save_prefs"), mock.patch.object(theme, "load_prefs",
+                                                                        return_value={}):
+            self.win._on_settings()
+            app_theme.toggle()
+            self.assertNotEqual(app_theme.current.dark, theme.THEMES[start].dark)
+            app_theme.set(start)
+        for window in set(Gtk.Window.list_toplevels()) - before:
+            window.destroy()
+
+    def test_window_width_picks_the_layout(self):
+        from urpm.ui.window import layout_mode
+        self.assertEqual([layout_mode(w) for w in (1400, 1200, 900)], [0, 1, 2])
+
     def test_multiple_actions_stop_at_first_failure(self):
         from urpm.ui.dialogs import CommandDialog
         done = []
@@ -363,15 +538,15 @@ class WindowTests(unittest.TestCase):
         dialog.destroy()
 
     def test_details_panel(self):
-        self.win.selection.set_selected(2)  # gamma
-        spin(lambda: self.win.d_description.get_label() == "All about gamma")
-        self.assertTrue(self.win.b_update.get_visible())
-        self.assertTrue(self.win.b_remove.get_visible())
-        self.assertIn("3.1", self.win.d_version.get_label())
-        self.win._on_show_files(None)
-        spin(lambda: self.win.files_scroller.get_visible())
-        start, end = self.win.files_buffer.get_bounds()
-        self.assertEqual(self.win.files_buffer.get_text(start, end, False), "/usr/bin/gamma")
+        self.win.packages.selection.set_selected(2)  # gamma
+        spin(lambda: self.win.details.description.get_label() == "All about gamma")
+        self.assertTrue(self.win.details.update_button.get_visible())
+        self.assertTrue(self.win.details.remove_button.get_visible())
+        self.assertIn("3.1", self.win.details.version_label.get_label())
+        self.win.details.load_files()
+        spin(lambda: self.win.details.files_scroller.get_visible())
+        start, end = self.win.details.files_buffer.get_bounds()
+        self.assertEqual(self.win.details.files_buffer.get_text(start, end, False), "/usr/bin/gamma")
 
     def test_run_action_reloads(self):
         from urpm.ui.dialogs import CommandDialog

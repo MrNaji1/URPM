@@ -7,6 +7,7 @@ import os
 from .base import UNIVERSAL, Action, Details, Package, Source, apply_updates, parse_fields, run
 
 SNAP_DIR = "/var/lib/snapd/snaps"
+DESKTOP_DIR = "/var/lib/snapd/desktop/applications"
 INFO_FIELDS = ("publisher", "store-url", "contact", "license", "tracking", "refresh-date")
 SYSTEM_NOTES = {"base", "core", "snapd", "gadget", "kernel"}
 
@@ -67,13 +68,12 @@ class SnapSource(Source):
     def launch_argv(self, pkg: Package) -> list[str] | None:
         if not pkg.explicit:
             return None
-        for folder in ("/var/lib/snapd/desktop/applications",):
-            try:
-                entries = os.listdir(folder)
-            except OSError:
-                continue
-            if any(e.startswith(f"{pkg.name}_") for e in entries):
-                return ["snap", "run", pkg.name]
+        try:
+            entries = os.listdir(DESKTOP_DIR)
+        except OSError:
+            return None
+        if any(e.startswith(f"{pkg.name}_") for e in entries):
+            return ["snap", "run", pkg.name]
         return None
 
     def remove_action(self, pkg: Package) -> Action:

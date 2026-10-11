@@ -15,57 +15,70 @@ on your screen, and a URPM window you already have open isn't touched. CI does t
 
 ## 1. Automated tests
 
-### Parsers and helpers (`tests/test_sources.py`, 45 tests, no GTK needed)
+**129 tests, 92% code coverage.** GitHub runs all of them on every push (the window tests
+under Xvfb), fails if coverage drops below 90%, and lints the code with `ruff`.
+
+| File | Tests | What it covers |
+|---|---:|---|
+| `test_sources.py` | 45 | Parsers and helpers for every package manager (no GTK needed) |
+| `test_e2e_sources.py` | 21 | **Every package manager end to end** on a fake system |
+| `test_ui.py` | 37 | The real window, run on a hidden display |
+| `test_app.py` | 11 | Command-line options, saved settings, shared helpers |
+| `test_install.py` | 6 | The launcher and `install.sh` |
+| `test_theme.py` | 6 | Theme colours, readability, theme choice at startup |
+| `test_export.py` | 3 | CSV / JSON / text export |
+
+### End to end on a fake system (`tests/test_e2e_sources.py`)
+
+`tests/fakes/` builds a throwaway fake Linux system for each test:
+
+- **Fake programs.** `pacman`, `rpm`, `dnf`, `zypper`, `apk`, `xbps-*`, `eopkg`, `flatpak`,
+  `snap`, `nix-env`, `nix`, `brew`, `pipx`, `npm`, `cargo` and more, each printing
+  realistic output in the real tool's format (`tests/fakes/responses.py`). `$PATH`
+  contains *only* these, so no real tool can run by accident.
+- **Fake databases.** dpkg's status and info files, Alpine's `installed` and `world`,
+  Gentoo's `/var/db/pkg`, Solus's `metadata.xml`, a Flatpak install with AppStream data,
+  Snap files, a Homebrew Cellar, a pipx environment, global npm packages, Cargo's
+  `.crates2.json`, pip's `site-packages`, and AppImages in `~/Applications` and
+  `~/Downloads`.
+
+URPM's real, unmodified code then lists packages, reads details and files, checks for
+updates, previews removals and builds remove/update commands for **all 16 package
+managers**, with RPM tested through both DNF and Zypper. Every command URPM runs is
+logged, and each test checks that only read-only commands ran.
+
+The tests were themselves checked by deliberately breaking the fake output (a different
+architecture, no updates reported, a package changing from "installed by you" to
+"dependency") and the code (Gentoo marking everything as yours): every break made a test
+fail. One of these checks found a gap: nothing tested Debian's ":amd64" suffix handling
+for packages you installed. It's covered now.
+
+### Parsers and helpers (`tests/test_sources.py`)
 
 | Area | What's checked |
 |---|---|
 | Sizes | `2.1 MB`, `511,1 MB` (comma locales), `1.1?GB` (flatpak in the C locale), non-breaking spaces, `MiB`, `KB`, `bytes`, garbage input |
-| Human sizes | `—` for unknown, B / KB / MB / GB / TB rounding |
-| Name/version splitting | Void `pkg-1.0_1`, Alpine `pkg-1.0-r15`, names with digits (`libfoo-2-1.0_1`) |
 | Version sorting | natural order: `1.9 < 1.10.2`, `9.0 < 10.0`, epochs, `-rc`, `v3` |
-| Actions | `sudo` display, `pkexec env …` for root, shell quoting of paths with spaces |
-| Root safety | `pkexec`, `env` and the program all come from system folders; a fake one in `~/.local/bin` is never used; refuses instead of falling back |
-| Option injection | package names like `--purge`, `-y` or with newlines are refused before any command runs; npm names come from folders, not `package.json` |
-| Untrusted AppImages | files in Downloads/Desktop or not yet executable need confirmation; only made executable for their owner |
-| Desktop entries | entries in subfolders (`applications/kde4/foo.desktop`) launch with the right ID |
-| Update matching | new versions only, Flatpak "new build" with the same version number |
-| Batched updates | one APT command for many packages, one Flatpak command **per installation** |
-| APT / dpkg | status filtering (`ii`, `hi`, `rc`), multiarch "installed by you", description reflow, `apt-get -s` simulation, `apt list --upgradable`, `pkexec` + noninteractive remove |
-| Flatpak | list columns, right-aligned `flatpak info`, `remote-ls --updates` refs, AppStream descriptions (skips translations) |
-| Snap | base/core/snapd marked as system, `snap refresh --list` including "all up to date" |
-| RPM | `rpm -qa` format, gpg-pubkey skipped, `dnf repoquery --upgrades`, `zypper rm --dry-run` preview |
-| pacman | `pacman -Qi` blocks with wrapped fields, dates, explicit vs dependency, `checkupdates` |
-| XBPS / apk / Portage / eopkg | list, world/manual files, updates, removal previews, CONTENTS and files.xml |
-| Nix | `nix-env -q --json`, `nix profile list --json` in both the old list and new dict formats |
-| AppImage | 7 real-world file names (`-x86_64`, `-x64`, `_x86_64`, no version), scanning, dedupe, trash and launch actions |
-| Homebrew / pip / pipx / npm / Cargo | JSON formats, name normalization, scoped npm packages, git vs crates.io sources |
-| Registry | 16 sources, unique ids, labels and emoji present |
+| Root safety | `pkexec`, `env` and the program all come from system folders; refuses instead of falling back |
+| Option injection | names like `--purge` or with newlines are refused; npm names come from folders |
+| Untrusted AppImages | files in Downloads/Desktop or not yet executable need confirmation |
+| Batched updates | one APT command for many packages, one Flatpak command per installation |
+| Every package manager | parsing of real captured output, including update lists and removal previews |
 
-### Export (`tests/test_export.py`, 3 tests)
+### Launcher and installer (`tests/test_install.py`)
 
-CSV quoting and columns, JSON, plain text, file extension detection (case-insensitive),
-and formula escaping so a package summary like `=HYPERLINK(…)` stays plain text in
-spreadsheets.
+The launcher can't be hijacked from the current folder. A verified release unpacks. A
+tampered download, odd release names and a cut-off script install nothing. The latest
+release is found without GitHub's rate-limited API.
 
-### Launcher and installer (`tests/test_install.py`, 5 tests)
+### Themes (`tests/test_theme.py`)
 
-| Test | What's checked |
-|---|---|
-| launcher isolation | running `urpm` inside a folder with its own `urpm/` (or with `PYTHONPATH` set) still runs the real URPM |
-| verified download | a release whose checksum matches is unpacked |
-| tampered download | a release that doesn't match `SHA256SUMS` installs nothing |
-| odd release names | `v1.0; rm -rf ~`, `../../x`, `main` and similar are rejected |
-| cut-off script | a partly downloaded `install.sh` runs nothing |
+Every theme defines every colour the stylesheet uses. All colours are valid hex. All five
+themes are registered. Text stays readable (WCAG contrast: body text 7:1, update badges
+4.5:1, bold button labels 3:1). The starting theme comes from your saved choice, an old
+1.x light/dark setting, or the system. The stylesheet has no hardcoded colours.
 
-### Themes (`tests/test_theme.py`, 6 tests, no windows)
-
-Every theme defines every colour the stylesheet uses, all colours are valid hex,
-all five themes are registered (Gotham is near-black with yellow), text stays readable
-(WCAG contrast: body text 7:1, update badges 4.5:1, bold button labels 3:1), the starting theme is picked correctly (saved choice,
-old 1.x light/dark setting, or the system), and the stylesheet includes previews of every
-theme with no hardcoded colours.
-
-### Real window (`tests/test_ui.py`, 24 tests, runs GTK 4)
+### Real window (`tests/test_ui.py`)
 
 These drive the real `UrpmWindow` with a fake package source and a deliberately broken one.
 
@@ -93,6 +106,14 @@ These drive the real `UrpmWindow` with a fake package source and a deliberately 
 | unsafe names in the UI | a refused name shows a message and never opens the remove dialog |
 | cancel | a running command (and the helpers it started) stops within seconds |
 | output limit | a command printing 20,000 lines keeps only the last 4,000 |
+| sorting | every column sorts both ways; versions sort naturally |
+| sorting while loading | rows that arrive while sorted land in the right place |
+| older GTK | sorting is still correct on GTK 4.6–4.8 (Ubuntu 22.04, Debian 12) |
+| export | the shown packages are written; errors are reported; the file dialog works |
+| copy, shortcuts, update | copy buttons, the shortcuts window, the Update button |
+| commands that can't run | they're copied to the clipboard with an explanation instead |
+| update-check errors | a package manager that fails its update check is named |
+| remove preview errors | a failing or unsupported preview says so instead of staying quiet |
 
 ## 2. Manual checklist
 
@@ -131,7 +152,26 @@ Run through this before a release, on a real desktop.
 - [x] `pipx install --system-site-packages` in a venv, then `--install-desktop`
 - [ ] PKGBUILD on Arch, RPM spec on Fedora/openSUSE *(needs those distros)*
 
-## 3. Results of the last test round (v1.1.0)
+## 3. Results of the last test rounds
+
+### v1.5.0 (Phase 2: strong foundations)
+
+| Found | Fix |
+|---|---|
+| Fedora, Arch, Alpine, Void, Gentoo and Solus code had only been tested against sample text, never by actually running the tools | A fake Linux system with fake `pacman`, `rpm`, `apk` and the rest; all 16 package managers now run end to end in tests |
+| Coverage was 74% | **92%**, enforced in CI (fails below 90%) |
+| Sorting 60,000 packages took 1.5–2.0 s | Integer ranks and GTK's native sorter: **0.26–0.40 s** (10,000 packages: 0.22 s → 0.06 s) |
+| A new test found that rows arriving while sorted could land out of order | GTK caches sort values, so every row is now reported as changed when ranks shift |
+| No Debian test covered the ":amd64" suffix on packages you installed | Added, after deliberately breaking the fake data showed the gap |
+| Cargo, pipx and Nix couldn't check for updates | All three now can |
+| `window.py` was one 1,161-line file | Split into the window (638 lines), table, sidebar, details panel and shared widgets |
+
+Known trade-off: at 60,000 packages, searching got slower (0.3–0.5 s per search, from
+0.2–0.3 s), because filtering now happens before sorting so that sorting is fast. Below
+10,000 packages there's no difference. GTK's search box waits for a pause in typing, so
+fast typing triggers one search, not one per letter.
+
+### v1.1.0
 
 | Found | Fix |
 |---|---|

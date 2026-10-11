@@ -13,15 +13,12 @@ from gi.repository import GLib, Gtk, Pango
 
 from urpm.sources import Action, Package, Source, human_size
 from urpm.sources.base import UnsafeCommand, root_binary, which
+from urpm.ui.widgets import label
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\r")
 PKEXEC_CANCELLED, PKEXEC_DENIED = 126, 127
 CANCELLED = -15          # our own code for "the user pressed Cancel"
 MAX_LOG_LINES = 4000     # output kept in the command window
-
-
-def label(text: str = "", *classes: str, **props) -> Gtk.Label:
-    return Gtk.Label(label=text, css_classes=list(classes), **props)
 
 
 class _Dialog(Gtk.Window):

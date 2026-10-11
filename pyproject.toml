@@ -40,3 +40,19 @@ include = ["urpm*"]
 [tool.setuptools.package-data]
 urpm = ["data/*", "data/icons/*"]
 "urpm.ui" = ["*.css"]
+
+[tool.coverage.run]
+source = ["urpm"]
+omit = ["urpm/__main__.py"]  # three lines that just call main()
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B"]
+ignore = ["E501"]  # long lines are fine when breaking them hurts readability

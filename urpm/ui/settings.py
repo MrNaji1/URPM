@@ -5,10 +5,7 @@ from __future__ import annotations
 from gi.repository import Gtk
 
 from urpm.ui.theme import THEMES, ThemeDef
-
-
-def label(text: str = "", *classes: str, **props) -> Gtk.Label:
-    return Gtk.Label(label=text, css_classes=list(classes), **props)
+from urpm.ui.widgets import label
 
 
 def theme_preview(theme: ThemeDef) -> Gtk.Widget:

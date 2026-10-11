@@ -6,6 +6,7 @@ import json
 import os
 
 from .base import DEV, Action, Package, Source, dir_size, mtime, run
+from .pip import normalize, parse_outdated
 
 
 def parse_pipx_list(text: str) -> list[Package]:
@@ -39,7 +40,26 @@ class PipxSource(Source):
         for pkg in packages:
             path = os.path.join(venvs, pkg.ident)
             pkg.size, pkg.installed = dir_size(path), mtime(path)
+            pkg.extra["venv"] = path
         return packages
 
     def remove_action(self, pkg: Package) -> Action:
         return Action(["pipx", "uninstall", pkg.ident])
+
+    def check_updates(self, packages: list[Package]) -> int:
+        """Each pipx app has its own environment, so ask each one's pip."""
+        found = 0
+        for pkg in packages:
+            python = os.path.join(pkg.extra.get("venv", ""), "bin", "python")
+            if not os.access(python, os.X_OK):
+                continue
+            text = run(python, "-m", "pip", "list", "--outdated", "--format=json",
+                       "--disable-pip-version-check", timeout=120)
+            latest = parse_outdated(text).get(normalize(pkg.name))
+            if latest and latest != pkg.version:
+                pkg.update = latest
+                found += 1
+        return found
+
+    def update_actions(self, pkgs: list[Package]) -> list[Action]:
+        return [Action(["pipx", "upgrade", pkg.ident]) for pkg in pkgs]

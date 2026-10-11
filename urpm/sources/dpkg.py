@@ -13,6 +13,7 @@ FORMAT = (
     "${db:Status-Abbrev}\t${Homepage}\t${binary:Summary}\n"
 )
 INFO_DIR = "/var/lib/dpkg/info"
+STATUS_FILE = "/var/lib/dpkg/status"
 EXTRA_FIELDS = ("Maintainer", "Architecture", "Source", "Priority", "Depends", "Recommends")
 NONINTERACTIVE = {"DEBIAN_FRONTEND": "noninteractive"}
 # There's no terminal to answer "keep your modified config file?", so keep it.
@@ -89,7 +90,7 @@ class DpkgSource(Source):
     kind = SYSTEM
 
     def list_packages(self) -> list[Package]:
-        if not os.path.exists("/var/lib/dpkg/status"):
+        if not os.path.exists(STATUS_FILE):
             return []  # dpkg installed as a helper tool on a non-Debian system
         manual = None
         if which("apt-mark"):

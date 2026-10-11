@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 
-from .base import UNIVERSAL, Action, Package, Source, run, split_name_version
+from .base import UNIVERSAL, Action, Package, Source, apply_updates, run, split_name_version
 
 NIX = ["nix", "--extra-experimental-features", "nix-command flakes"]
 PROFILE_MANIFEST = os.path.expanduser("~/.nix-profile/manifest.json")
@@ -44,6 +44,17 @@ def parse_nix_profile(text: str) -> list[Package]:
     return packages
 
 
+def parse_nix_env_compare(text: str) -> dict[str, str]:
+    """`nix-env -qc`: 'hello-2.12.1  < 2.12.2' means a newer version is available."""
+    updates = {}
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[1] == "<":
+            name, _version = split_name_version(parts[0])
+            updates[name] = parts[2]
+    return updates
+
+
 class NixSource(Source):
     id = "nix"
     label = "Nix"
@@ -62,3 +73,13 @@ class NixSource(Source):
             return Action([*NIX, "profile", "remove", pkg.ident],
                           pretty=f"nix profile remove {pkg.ident}")
         return Action(["nix-env", "-e", pkg.ident])
+
+    def check_updates(self, packages: list[Package]) -> int:
+        if any(p.extra.get("profile") for p in packages):
+            return 0  # `nix profile` can't preview upgrades without doing them
+        return apply_updates(packages, parse_nix_env_compare(run("nix-env", "-qc", timeout=180)))
+
+    def update_actions(self, pkgs: list[Package]) -> list[Action]:
+        if any(p.extra.get("profile") for p in pkgs):
+            return []
+        return [Action(["nix-env", "-u", *(p.ident for p in pkgs)])]

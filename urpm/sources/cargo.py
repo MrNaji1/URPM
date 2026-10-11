@@ -6,13 +6,27 @@ import json
 import os
 import re
 
-from .base import DEV, Action, Details, Package, Source, mtime, which
+from .base import DEV, Action, Details, Package, Source, apply_updates, mtime, run, which
 
 _KEY_RE = re.compile(r"^(?P<name>\S+) (?P<version>\S+) \((?P<source>[^)]*)\)$")
 
 
 def cargo_home() -> str:
     return os.environ.get("CARGO_HOME") or os.path.expanduser("~/.cargo")
+
+
+def parse_install_update(text: str) -> dict[str, str]:
+    """`cargo install-update -l` (from the cargo-update add-on):
+
+        Package  Installed  Latest   Needs update
+        ripgrep  v14.1.0    v14.1.1  Yes
+    """
+    updates = {}
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) >= 4 and parts[-1] == "Yes":
+            updates[parts[0]] = parts[2].lstrip("v")
+    return updates
 
 
 def describe_source(source: str) -> str:
@@ -72,3 +86,14 @@ class CargoSource(Source):
 
     def remove_action(self, pkg: Package) -> Action | None:
         return Action(["cargo", "uninstall", pkg.name]) if which("cargo") else None
+
+    def check_updates(self, packages: list[Package]) -> int:
+        # Cargo itself can't list updates; the popular cargo-update add-on can.
+        if not (which("cargo") and which("cargo-install-update")):
+            return 0
+        return apply_updates(packages, parse_install_update(run("cargo", "install-update", "-l",
+                                                                 timeout=180)))
+
+    def update_actions(self, pkgs: list[Package]) -> list[Action]:
+        # `cargo install` replaces an installed crate when a newer version exists.
+        return [Action(["cargo", "install", *(p.name for p in pkgs)])] if which("cargo") else []

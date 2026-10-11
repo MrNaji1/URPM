@@ -96,7 +96,7 @@ never an error.
 | 🧩 **Flatpak** (apps + runtimes, system + user) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 🐦 **Snap** | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | 💿 **AppImage**³ | ✅ | — | ✅ (to trash) | — | ✅ | ✅ |
-| ❄️ **Nix** (`nix-env` and `nix profile`) | ✅ | — | ✅ | — | — | — |
+| ❄️ **Nix** (`nix-env` and `nix profile`) | ✅ | ✅⁴ | ✅ | ✅⁴ | — | — |
 | 🍺 **Homebrew** on Linux | ✅ | ✅ | ✅ | ✅ | — | ✅ |
 
 ### 🛠️ Developer tools
@@ -104,15 +104,17 @@ never an error.
 | Package manager | List | Update check | Remove | Update | Files |
 |---|:-:|:-:|:-:|:-:|:-:|
 | 🐍 **pip** (`--user` installs) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 🧪 **pipx** | ✅ | — | ✅ | — | — |
+| 🧪 **pipx** | ✅ | ✅ | ✅ | ✅ | — |
 | 🟩 **npm** (global `-g` packages) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 🦀 **Cargo** (`cargo install`) | ✅ | — | ✅ | — | ✅ |
+| 🦀 **Cargo** (`cargo install`) | ✅ | ✅⁵ | ✅ | ✅ | ✅ |
 
 <sub>¹ Needs `checkupdates` from `pacman-contrib`, which checks safely without touching your
 real package database. ² Arch doesn't support upgrading a single package (partial upgrades),
 so URPM shows the update and leaves `sudo pacman -Syu` to you. ³ URPM looks in
 `~/Applications`, `~/Downloads`, `~/Desktop`, `~/.local/bin`, `~/AppImages`, `~/bin`,
-`/opt` and `/usr/local/bin`.</sub>
+`/opt` and `/usr/local/bin`. ⁴ For `nix-env` installs; the newer `nix profile` can't preview
+upgrades. ⁵ Needs the [`cargo-update`](https://crates.io/crates/cargo-update) add-on
+(`cargo install cargo-update`).</sub>
 
 Want another one (Guix, Conda, RubyGems, Go…)?
 [Open an issue](https://github.com/MrNaji1/URPM/issues/new?template=package_manager.md).
@@ -379,28 +381,36 @@ urpm/
     pip.py pipx.py npm.py cargo.py
   ui/
     app.py      Gtk.Application, shortcuts, command-line flags
-    window.py   the main window
+    window.py   the main window: wires the parts together, loading and actions
+    table.py    the package list: model, fast sorting, search, columns
+    sidebar.py  views, package managers and the "Just mine" switch
+    details.py  the details panel on the right
     dialogs.py  remove confirmation, command output, export
-    theme.py    themes (colour palettes) and saved preferences
     settings.py the Settings window and theme picker
+    theme.py    themes (colour palettes) and saved preferences
+    widgets.py  small shared helpers
     style.css   all the cuteness
   export.py     CSV / JSON / text export
   data/         icon, .desktop entry, AppStream metainfo
 packaging/      .deb builder, Arch PKGBUILD, RPM spec
-tests/          parser tests + UI tests
+tests/          unit, end-to-end, installer and UI tests
+  fakes/        a fake Linux system with fake pacman, rpm, apk… for end-to-end tests
 ```
 
 **Adding a package manager:** subclass `Source` in `urpm/sources/`. Implement
 `list_packages()`, plus whichever of `details()`, `files()`, `remove_action()`,
 `simulate_remove()`, `check_updates()`, `update_action()` and `launch_argv()` make sense.
 Then register it in `urpm/sources/__init__.py`. Keep text parsing in a standalone
-`parse_*()` function and add a test with real captured output.
+`parse_*()` function and add a test with real captured output. Then add the tool's real
+output to `tests/fakes/responses.py` and an end-to-end test to
+`tests/test_e2e_sources.py`, so it's tested on every machine.
 
 **Running tests:**
 
 ```bash
-make test       # parser + export tests, no windows
+make test       # everything that doesn't open a window (~2 s)
 make test-ui    # also the UI tests, on a hidden display (needs xvfb)
+ruff check urpm tests   # lint
 ```
 
 See [docs/TESTING.md](docs/TESTING.md) for the full list of tests and the manual release
