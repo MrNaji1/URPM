@@ -1,0 +1,18 @@
+pkgbase = urpm
+	pkgdesc = Cute GTK app that shows every package installed on your Linux machine
+	pkgver = 2.2.0
+	pkgrel = 1
+	url = https://github.com/MrNaji1/URPM
+	arch = any
+	license = MIT
+	depends = python
+	depends = python-gobject
+	depends = gtk4
+	optdepends = polkit: remove and update packages from inside URPM
+	optdepends = pacman-contrib: see available pacman updates and old cached packages
+	optdepends = arch-audit: mark updates that fix security problems
+	optdepends = flatpak: list Flatpak apps
+	source = urpm-2.2.0.tar.gz::https://github.com/MrNaji1/URPM/archive/refs/tags/v2.2.0.tar.gz
+	sha256sums = a9d036c050e9c9c2f16d989e65ad2fcb01941109784b8bf962141572a5d5f394
+
+pkgname = urpm

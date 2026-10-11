@@ -2,7 +2,7 @@
 # Arch Linux, Manjaro, EndeavourOS, CachyOS, Garuda…
 #   git clone https://github.com/MrNaji1/URPM && cd URPM/packaging/arch && makepkg -si
 pkgname=urpm
-pkgver=1.1.0
+pkgver=2.2.0
 pkgrel=1
 pkgdesc="Cute GTK app that shows every package installed on your Linux machine"
 arch=('any')
@@ -10,10 +10,11 @@ url="https://github.com/MrNaji1/URPM"
 license=('MIT')
 depends=('python' 'python-gobject' 'gtk4')
 optdepends=('polkit: remove and update packages from inside URPM'
-            'pacman-contrib: see available pacman updates (checkupdates)'
+            'pacman-contrib: see available pacman updates and old cached packages'
+            'arch-audit: mark updates that fix security problems'
             'flatpak: list Flatpak apps')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('676ecb88653f84388508b2c9d6f4b12a36c1e7819f187954b2358fb719e6de38')
+sha256sums=('a9d036c050e9c9c2f16d989e65ad2fcb01941109784b8bf962141572a5d5f394')
 
 package() {
   cd "URPM-$pkgver"
