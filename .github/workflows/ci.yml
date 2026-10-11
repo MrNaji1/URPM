@@ -54,7 +54,7 @@ jobs:
       - name: Ubuntu PPA source package builds
         run: |
           cp -r packaging/debian/debian debian
-          dpkg-buildpackage -b -us -uc
+          dpkg-buildpackage -b -us -uc -d   # -d: Launchpad has build-essential; CI needs no compiler
           dpkg-source -b .
           rm -rf debian
       - name: PyPI package builds and passes twine's checks
