@@ -3,6 +3,8 @@
 To teach URPM a new one, subclass ``Source`` and add it to ``ALL_SOURCES``.
 """
 
+from urpm.i18n import N_
+
 from .apk import ApkSource
 from .appimage import AppImageSource
 from .base import DEV, SYSTEM, UNIVERSAL, Action, Cleanup, Details, Package, Source, human_size
@@ -31,7 +33,8 @@ ALL_SOURCES: list[Source] = [
     PipSource(), PipxSource(), NpmSource(), CargoSource(),
 ]
 
-KIND_LABELS = {SYSTEM: "SYSTEM", UNIVERSAL: "APPS", DEV: "DEVELOPER"}
+# Sidebar headings, translated where they are shown.
+KIND_LABELS = {SYSTEM: N_("SYSTEM"), UNIVERSAL: N_("APPS"), DEV: N_("DEVELOPER")}
 
 
 def available_sources() -> list[Source]:

@@ -6,6 +6,8 @@ import json
 import os
 import re
 
+from urpm.i18n import _
+
 from .base import DEV, Action, Details, Package, Source, apply_updates, mtime, run, which
 
 _KEY_RE = re.compile(r"^(?P<name>\S+) (?P<version>\S+) \((?P<source>[^)]*)\)$")
@@ -30,7 +32,7 @@ def parse_install_update(text: str) -> dict[str, str]:
 
 
 def describe_source(source: str) -> str:
-    kind, _, url = source.partition("+")
+    kind, _sep, url = source.partition("+")
     if "crates.io" in url or "index.crates.io" in url:
         return "crates.io"
     return url.split("#")[0] if kind in ("git", "registry") else source
@@ -48,7 +50,7 @@ def parse_crates2(text: str) -> list[tuple[Package, list[str]]]:
             name=match["name"],
             version=match["version"],
             source="cargo",
-            summary=f"Provides: {', '.join(bins)}" if bins else "",
+            summary=_("Provides: {commands}").format(commands=", ".join(bins)) if bins else "",
             section=describe_source(match["source"]),
         ), bins))
     return results
@@ -76,7 +78,7 @@ class CargoSource(Source):
             pkg.extra["bins"] = "\n".join(paths)
             pkg.size = sum(os.path.getsize(p) for p in paths if os.path.exists(p))
             pkg.installed = max((mtime(p) or 0 for p in paths), default=0) or None
-        return [pkg for pkg, _ in parsed]
+        return [pkg for pkg, _extra in parsed]
 
     def details(self, pkg: Package) -> Details:
         return Details(fields=[("Source", pkg.section), ("Binaries", pkg.extra.get("bins", ""))])
@@ -93,6 +95,9 @@ class CargoSource(Source):
             return 0
         return apply_updates(packages, parse_install_update(run("cargo", "install-update", "-l",
                                                                  timeout=180)))
+
+    def install_actions(self, pkgs: list[Package]) -> list[Action]:
+        return [Action(["cargo", "install", *(p.name for p in pkgs)])] if pkgs else []
 
     def update_actions(self, pkgs: list[Package]) -> list[Action]:
         # `cargo install` replaces an installed crate when a newer version exists.

@@ -93,7 +93,7 @@ class NpmSource(Source):
         return Details(fields=[(k, v) for k, v in fields if v])
 
     def files(self, pkg: Package) -> list[str]:
-        return [os.path.join(d, f) for d, _, names in os.walk(pkg.extra["path"]) for f in names]
+        return [os.path.join(d, f) for d, _dirs, names in os.walk(pkg.extra["path"]) for f in names]
 
     def remove_action(self, pkg: Package) -> Action:
         return Action(["npm", "uninstall", "-g", pkg.name], root=not can_write(pkg.section))
@@ -101,6 +101,15 @@ class NpmSource(Source):
     def update_actions(self, pkgs: list[Package]) -> list[Action]:
         root = not can_write(pkgs[0].section) if pkgs else False
         return [Action(["npm", "install", "-g", *(f"{p.name}@latest" for p in pkgs)], root=root)]
+
+    def install_actions(self, pkgs: list[Package]) -> list[Action]:
+        if not pkgs:
+            return []
+        try:  # the one thing that depends on this computer: is npm's global folder ours?
+            root = not can_write(self._root())
+        except RuntimeError:
+            root = False
+        return [Action(["npm", "install", "-g", *(p.name for p in pkgs)], root=root)]
 
     def check_updates(self, packages: list[Package]) -> int:
         # npm outdated exits with 1 when something is outdated.

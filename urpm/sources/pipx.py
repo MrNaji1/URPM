@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 
+from urpm.i18n import _
+
 from .base import DEV, Action, Package, Source, dir_size, mtime, run
 from .pip import normalize, parse_outdated
 
@@ -20,7 +22,7 @@ def parse_pipx_list(text: str) -> list[Package]:
             name=main.get("package") or name,
             version=main.get("package_version", ""),
             source="pipx",
-            summary=f"Provides: {', '.join(apps)}" if apps else "",
+            summary=_("Provides: {commands}").format(commands=", ".join(apps)) if apps else "",
             section=metadata.get("python_version") or "",
             ident=name,
         ))
@@ -45,6 +47,9 @@ class PipxSource(Source):
 
     def remove_action(self, pkg: Package) -> Action:
         return Action(["pipx", "uninstall", pkg.ident])
+
+    def install_actions(self, pkgs: list[Package]) -> list[Action]:
+        return [Action(["pipx", "install", pkg.name]) for pkg in pkgs]
 
     def check_updates(self, packages: list[Package]) -> int:
         """Each pipx app has its own environment, so ask each one's pip."""

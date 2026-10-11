@@ -29,7 +29,7 @@ def parse_contents(text: str) -> list[str]:
     """CONTENTS lines: 'obj /path md5 mtime', 'sym /link -> target mtime', 'dir /path'."""
     files = []
     for line in text.splitlines():
-        kind, _, rest = line.partition(" ")
+        kind, _sep, rest = line.partition(" ")
         if kind == "obj":
             files.append(rest.rsplit(" ", 2)[0])
         elif kind == "sym":
@@ -86,6 +86,11 @@ class PortageSource(Source):
 
     def launch_argv(self, pkg: Package) -> list[str] | None:
         return desktop_launcher(self.files(pkg))
+
+    def install_actions(self, pkgs: list[Package]) -> list[Action]:
+        atoms = [p.ident for p in pkgs]
+        return [Action(["emerge", "--noreplace", "--ask=n", *atoms], root=True,
+                       pretty=f"sudo emerge --noreplace {' '.join(atoms)}")] if atoms else []
 
     def remove_action(self, pkg: Package) -> Action:
         # Drop it from @world, then depclean, which refuses if something still needs it.

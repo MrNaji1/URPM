@@ -16,8 +16,9 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
-from urpm import cleanup, icons  # noqa: E402
+from urpm import cleanup, icons, migrate  # noqa: E402
 from urpm.duplicates import find_duplicates  # noqa: E402
+from urpm.i18n import _, ngettext  # noqa: E402
 from urpm.export import render_export  # noqa: E402
 from urpm.sources import Package, Source, available_sources, human_size  # noqa: E402
 from urpm.sources.base import UnsafeCommand, check_targets  # noqa: E402
@@ -78,7 +79,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self.packages = PackageTable(self._in_view, self._on_row_activated,
                                      lambda: self._on_remove())
         self.packages.selection.connect("notify::selected-item", self._on_selection_changed)
-        self.packages.shown.connect("items-changed", lambda *_: self._update_status())
+        self.packages.shown.connect("items-changed", lambda *_args: self._update_status())
         self.details = DetailsPanel(on_open=self._on_open, on_update=self._on_update,
                                     on_remove=self._on_remove, on_copy_command=self._on_copy_remove,
                                     on_copy_name=self._on_copy_name, on_hold=self._on_hold)
@@ -120,7 +121,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
         brand.append(label("URPM", "brand"))
         header.pack_start(brand)
 
-        self.search = Gtk.SearchEntry(placeholder_text="Search your packages…", width_chars=30)
+        self.search = Gtk.SearchEntry(placeholder_text=_("Search your packages…"), width_chars=30)
         self.search.connect("search-changed", self._on_search_changed)
         self.search.connect("stop-search", lambda e: e.set_text(""))
         self.search.set_key_capture_widget(self)
@@ -128,32 +129,33 @@ class UrpmWindow(Gtk.ApplicationWindow):
 
         menu = Gio.Menu()
         section = Gio.Menu()
-        section.append("Check for updates", "win.check-updates")
-        section.append("Export list…", "win.export")
+        section.append(_("Check for updates"), "win.check-updates")
+        section.append(_("Export list…"), "win.export")
+        section.append(_("Move to a new computer…"), "win.move")
         menu.append_section(None, section)
         section = Gio.Menu()
-        section.append("Settings…", "win.settings")
-        section.append("Keyboard shortcuts", "win.shortcuts")
-        section.append("About URPM", "app.about")
-        section.append("Quit", "app.quit")
+        section.append(_("Settings…"), "win.settings")
+        section.append(_("Keyboard shortcuts"), "win.shortcuts")
+        section.append(_("About URPM"), "app.about")
+        section.append(_("Quit"), "app.quit")
         menu.append_section(None, section)
         menu_button = Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu,
-                                     tooltip_text="Menu")
-        accessible_name(menu_button, "Main menu")
+                                     tooltip_text=_("Menu"))
+        accessible_name(menu_button, _("Main menu"))
         header.pack_end(menu_button)
 
         self.theme_button = Gtk.Button(icon_name="applications-graphics-symbolic",
-                                       tooltip_text="Themes (Ctrl+,)", action_name="win.settings")
-        accessible_name(self.theme_button, "Settings and themes")
+                                       tooltip_text=_("Themes (Ctrl+,)"), action_name="win.settings")
+        accessible_name(self.theme_button, _("Settings and themes"))
         header.pack_end(self.theme_button)
 
         self.refresh_button = Gtk.Button(icon_name="view-refresh-symbolic",
-                                         tooltip_text="Reload packages (Ctrl+R)",
+                                         tooltip_text=_("Reload packages (Ctrl+R)"),
                                          action_name="win.refresh")
-        accessible_name(self.refresh_button, "Reload packages")
+        accessible_name(self.refresh_button, _("Reload packages"))
         header.pack_end(self.refresh_button)
 
-        self.updates_spinner = Gtk.Spinner(tooltip_text="Checking for updates…", visible=False)
+        self.updates_spinner = Gtk.Spinner(tooltip_text=_("Checking for updates…"), visible=False)
         header.pack_end(self.updates_spinner)
         self.set_titlebar(header)
 
@@ -174,14 +176,16 @@ class UrpmWindow(Gtk.ApplicationWindow):
     def _build_main(self) -> Gtk.Widget:
         main = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True)
 
-        self.stats = Gtk.Box(spacing=14, homogeneous=True, css_classes=["stats"])
+        # Not homogeneous: one long number ("807.0 MB") shouldn't make every card wider and
+        # push the whole window wider than the screen.
+        self.stats = Gtk.Box(spacing=14, css_classes=["stats"])
         self.stat_labels: dict[str, tuple[Gtk.Label, Gtk.Label]] = {}
         self.stat_cards = []
-        for key, emoji, caption, color in (("count", "📦", "packages", "pink"),
-                                           ("size", "💾", "on disk", "lilac"),
-                                           ("mine", "💖", "installed by you", "mint"),
-                                           ("updates", "✨", "updates available", "peach")):
-            card = Gtk.Box(spacing=12, css_classes=["stat-card", color])
+        for key, emoji, caption, color in (("count", "📦", _("packages"), "pink"),
+                                           ("size", "💾", _("on disk"), "lilac"),
+                                           ("mine", "💖", _("installed by you"), "mint"),
+                                           ("updates", "✨", _("updates available"), "peach")):
+            card = Gtk.Box(spacing=12, css_classes=["stat-card", color], hexpand=True)
             card.emoji = label(emoji, "stat-emoji")
             card.append(card.emoji)
             text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER)
@@ -198,7 +202,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
         banner = Gtk.Box(spacing=12, css_classes=["banner"])
         self.banner_label = label("", "banner-text", xalign=0, hexpand=True, wrap=True)
         banner.append(self.banner_label)
-        self.update_all_button = Gtk.Button(label="✨ Update all", css_classes=["cute"],
+        self.update_all_button = Gtk.Button(label=_("✨ Update all"), css_classes=["cute"],
                                             valign=Gtk.Align.CENTER)
         self.update_all_button.connect("clicked", self._on_update_all)
         banner.append(self.update_all_button)
@@ -210,14 +214,14 @@ class UrpmWindow(Gtk.ApplicationWindow):
         loading = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14,
                           valign=Gtk.Align.CENTER, halign=Gtk.Align.CENTER)
         loading.append(Gtk.Spinner(spinning=True, width_request=36, height_request=36))
-        loading.append(label("Counting your packages…", "placeholder-title"))
-        loading.append(label("peeking into every box on your shelf", "dim"))
+        loading.append(label(_("Counting your packages…"), "placeholder-title"))
+        loading.append(label(_("peeking into every box on your shelf"), "dim"))
         self.content.add_named(loading, "loading")
         self.content.add_named(self.packages, "table")
         empty = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
                         valign=Gtk.Align.CENTER, halign=Gtk.Align.CENTER)
         self.empty_emoji = label("🔍", "big-emoji")
-        self.empty_title = label("Nothing here!", "placeholder-title")
+        self.empty_title = label(_("Nothing here!"), "placeholder-title")
         self.empty_hint = label("", "dim")
         for widget in (self.empty_emoji, self.empty_title, self.empty_hint):
             empty.append(widget)
@@ -257,7 +261,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self.details.set_visible(self.view not in TOOL_VIEWS and
                                  (self._layout_mode == 0 or self._selected() is not None))
 
-    def _save_window_state(self, *_):
+    def _save_window_state(self, *_args):
         width, height = self.get_default_size()
         prefs = theme.load_prefs()
         prefs["window"] = {"width": width, "height": height, "maximized": self.is_maximized()}
@@ -346,9 +350,9 @@ class UrpmWindow(Gtk.ApplicationWindow):
         errors = [f"{src.label}: {self.errors[src.id]}" for src in self._load_order
                   if src.id in self.errors]
         if errors:
-            self.show_toast("😿 Couldn't read " + "; ".join(errors))
+            self.show_toast(_("😿 Couldn't read {errors}").format(errors="; ".join(errors)))
         elif not self.items:
-            self.show_toast("No package managers found on this system")
+            self.show_toast(_("No package managers found on this system"))
         self.check_updates()
         self.scan_cleanups()
         self.load_history()
@@ -383,7 +387,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
         match = next((i for i in self.items if i.pkg.name.split(":")[0] == event.name
                       and i.source.label.startswith(event.source)), None)
         if match is None:
-            self.show_toast(f"{event.name} isn't installed any more")
+            self.show_toast(_("{name} isn't installed any more").format(name=event.name))
             return
         self._show_item(match)
 
@@ -431,9 +435,10 @@ class UrpmWindow(Gtk.ApplicationWindow):
             return
 
         def confirmed():
-            self._run_action(f"Cleaning up: {item.title}…", list(item.actions),
-                             "🧹 Cleaned up" + (f", {human_size(item.size)} freed"
-                                                if item.size else ""))
+            self._run_action(_("Cleaning up: {what}…").format(what=item.title),
+                             list(item.actions),
+                             _("🧹 Cleaned up, {size} freed").format(size=human_size(item.size))
+                             if item.size else _("🧹 Cleaned up"))
 
         ConfirmCleanupDialog(self, item, confirmed).present()
 
@@ -482,12 +487,14 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self._last_checked = time.time()
         self._refresh_view(rebuild_sidebar=True)
         self.details.show_package(self._selected())
-        total = sum(count for count, _ in results)
-        errors = [err for _, err in results if err]
+        total = sum(count for count, _err in results)
+        errors = [err for _count, err in results if err]
         if errors:
-            self.show_toast("😿 Couldn't check updates for " + "; ".join(errors))
+            self.show_toast(_("😿 Couldn't check updates for {errors}").format(
+                errors="; ".join(errors)))
         elif total:
-            self.show_toast(f"✨ {total} update{'s' if total != 1 else ''} available")
+            self.show_toast(ngettext("✨ {n} update available", "✨ {n} updates available", total)
+                            .format(n=total))
         return GLib.SOURCE_REMOVE
 
     # ---------------------------------------------------------------- filtering
@@ -532,9 +539,12 @@ class UrpmWindow(Gtk.ApplicationWindow):
         if ready:
             sources = sorted({i.source.label for i in ready})
             security = sum(1 for i in ready if i.pkg.security)
-            self.banner_label.set_label(
-                f"✨ {len(ready)} update{'s' if len(ready) != 1 else ''} ready from "
-                f"{', '.join(sources)}" + (f" · 🛡 {security} security" if security else ""))
+            text = ngettext("✨ {n} update ready from {sources}",
+                            "✨ {n} updates ready from {sources}", len(ready)).format(
+                                n=len(ready), sources=", ".join(sources))
+            if security:
+                text += " · " + _("🛡 {n} security").format(n=security)
+            self.banner_label.set_label(text)
         self.banner.set_reveal_child(bool(ready))
 
     def _update_stats(self) -> None:
@@ -545,8 +555,8 @@ class UrpmWindow(Gtk.ApplicationWindow):
         updates = sum(1 for i in scope if i.pkg.update)
         security = sum(1 for i in scope if i.pkg.update and i.pkg.security)
         self.stat_labels["updates"][0].set_label("…" if self._checking_updates else f"{updates:,}")
-        self.stat_labels["updates"][1].set_label(f"updates · 🛡 {security:,}" if security
-                                                 else "updates available")
+        self.stat_labels["updates"][1].set_label(_("updates · 🛡 {n}").format(n=f"{security:,}")
+                                                 if security else _("updates available"))
 
     def _update_status(self) -> None:
         if self.view in TOOL_VIEWS:
@@ -556,27 +566,31 @@ class UrpmWindow(Gtk.ApplicationWindow):
         if not self.items:
             if not self._loading:
                 self.status.set_label("")
-                self._show_empty("📭", "No packages found", "URPM didn't find any package manager")
+                self._show_empty("📭", _("No packages found"),
+                                 _("URPM didn't find any package manager"))
             return
         shown, total = self.packages.shown.get_n_items(), len(self.items)
-        status = f"Showing {shown:,} of {total:,} packages"
+        status = _("Showing {shown} of {total} packages").format(shown=f"{shown:,}",
+                                                                 total=f"{total:,}")
         if self._loading and self._pending:
-            status += " · still loading " + ", ".join(self._pending.values()) + "…"
+            status += " · " + _("still loading {names}…").format(
+                names=", ".join(self._pending.values()))
         if self._last_checked:
-            status += " · updates checked at " + time.strftime(
-                "%H:%M", time.localtime(self._last_checked))
+            status += " · " + _("updates checked at {time}").format(
+                time=time.strftime("%H:%M", time.localtime(self._last_checked)))
         self.status.set_label(status)
         if shown:
             self.content.set_visible_child_name("table")
             return
         query = self.search.get_text().strip()
         if query:
-            self._show_empty("🔍", "Nothing here!", f"No packages match “{query}”")
+            self._show_empty("🔍", _("Nothing here!"),
+                             _("No packages match “{query}”").format(query=query))
         elif self.view == UPDATES:
-            hint = "Still checking…" if self._checking_updates else "Everything is up to date"
-            self._show_empty("🎉", "All fresh!", hint)
+            hint = _("Still checking…") if self._checking_updates else _("Everything is up to date")
+            self._show_empty("🎉", _("All fresh!"), hint)
         else:
-            self._show_empty("🔍", "Nothing here!", "No packages in this view")
+            self._show_empty("🔍", _("Nothing here!"), _("No packages in this view"))
 
     def _show_empty(self, emoji: str, title: str, hint: str) -> None:
         self.empty_emoji.set_label(emoji)
@@ -587,12 +601,13 @@ class UrpmWindow(Gtk.ApplicationWindow):
     # ---------------------------------------------------------------- events
 
     def _install_actions(self) -> None:
-        for name, callback in (("refresh", lambda *_: self.reload()),
-                               ("search", lambda *_: self.search.grab_focus()),
-                               ("check-updates", lambda *_: self.check_updates()),
-                               ("export", lambda *_: self._on_export()),
-                               ("shortcuts", lambda *_: self._on_shortcuts()),
-                               ("settings", lambda *_: self._on_settings())):
+        for name, callback in (("refresh", lambda *_args: self.reload()),
+                               ("search", lambda *_args: self.search.grab_focus()),
+                               ("check-updates", lambda *_args: self.check_updates()),
+                               ("export", lambda *_args: self._on_export()),
+                               ("move", lambda *_args: self._on_move()),
+                               ("shortcuts", lambda *_args: self._on_shortcuts()),
+                               ("settings", lambda *_args: self._on_settings())):
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", callback)
             self.add_action(action)
@@ -610,7 +625,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
         self.history_page.set_hide_automatic(active)  # "Just mine" hides dependency installs
         self._refresh_view(rebuild_sidebar=True)
 
-    def _on_selection_changed(self, *_) -> None:
+    def _on_selection_changed(self, *_args) -> None:
         self._sync_details_visibility()
         self.details.show_package(self._selected())
 
@@ -629,7 +644,8 @@ class UrpmWindow(Gtk.ApplicationWindow):
         problem = next((p for p in map(can_run, actions) if p), None)
         if problem:
             self._copy("\n".join(a.display() for a in actions),
-                       f"😿 {problem}. The command was copied, so you can run it in a terminal.")
+                       _("😿 {problem}. The command was copied, so you can run it in a "
+                         "terminal.").format(problem=problem))
             return
 
         def finished(ok: bool):
@@ -639,7 +655,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
 
         CommandDialog(self, title, actions, finished).present()
 
-    def _on_remove(self, *_) -> None:
+    def _on_remove(self, *_args) -> None:
         item = self._selected()
         if item:
             self._remove_item(item)
@@ -655,7 +671,8 @@ class UrpmWindow(Gtk.ApplicationWindow):
         pkg = item.pkg
 
         def confirmed():
-            self._run_action(f"Removing {pkg.name}…", action, f"👋 Removed {pkg.name}")
+            self._run_action(_("Removing {name}…").format(name=pkg.name), action,
+                             _("👋 Removed {name}").format(name=pkg.name))
 
         ConfirmRemoveDialog(self, pkg, item.source, action, confirmed).present()
 
@@ -673,11 +690,13 @@ class UrpmWindow(Gtk.ApplicationWindow):
             self.show_toast(f"🛑 {exc}")
             return
         if pkg.held:
-            self._run_action(f"Allowing updates for {pkg.name}…", action,
-                             f"📌 {pkg.name} will be updated again")
+            self._run_action(_("Allowing updates for {name}…").format(name=pkg.name), action,
+                             _("📌 {name} will be updated again").format(name=pkg.name))
         else:
-            self._run_action(f"Keeping {pkg.name} at {pkg.version}…", action,
-                             f"📌 {pkg.name} stays at {pkg.version}")
+            self._run_action(_("Keeping {name} at {version}…").format(name=pkg.name,
+                                                                      version=pkg.version),
+                             action, _("📌 {name} stays at {version}").format(
+                                 name=pkg.name, version=pkg.version))
 
     def _on_update(self) -> None:
         item = self._selected()
@@ -689,8 +708,8 @@ class UrpmWindow(Gtk.ApplicationWindow):
             self.show_toast(f"🛑 {exc}")
             return
         if actions:
-            self._run_action(f"Updating {item.pkg.name}…", actions,
-                             f"✨ Updated {item.pkg.name}")
+            self._run_action(_("Updating {name}…").format(name=item.pkg.name), actions,
+                             _("✨ Updated {name}").format(name=item.pkg.name))
 
     def _on_update_all(self, _button=None) -> None:
         by_source: dict[Source, list[Package]] = {}
@@ -703,11 +722,13 @@ class UrpmWindow(Gtk.ApplicationWindow):
             self.show_toast(f"🛑 {exc}")
             return
         if not actions:
-            self.show_toast("Nothing to update here")
+            self.show_toast(_("Nothing to update here"))
             return
         count = sum(len(p) for p in by_source.values())
-        self._run_action(f"Updating {count} package{'s' if count != 1 else ''}…", actions,
-                         f"✨ Updated {count} package{'s' if count != 1 else ''}")
+        self._run_action(ngettext("Updating {n} package…", "Updating {n} packages…", count)
+                         .format(n=count), actions,
+                         ngettext("✨ Updated {n} package", "✨ Updated {n} packages", count)
+                         .format(n=count))
 
     def _on_row_activated(self, item: PackageItem | None) -> None:
         if item is None:
@@ -724,7 +745,7 @@ class UrpmWindow(Gtk.ApplicationWindow):
 
     def _launch_item(self, item: PackageItem, argv, confirmed: bool = False) -> bool:
         if not argv:
-            self.show_toast(f"{item.pkg.name} isn't an app you can open")
+            self.show_toast(_("{name} isn't an app you can open").format(name=item.pkg.name))
             return GLib.SOURCE_REMOVE
         warning = None if confirmed else item.source.launch_warning(item.pkg)
         if warning:
@@ -733,15 +754,16 @@ class UrpmWindow(Gtk.ApplicationWindow):
             return GLib.SOURCE_REMOVE
         try:
             launch(argv)
-            self.show_toast(f"🚀 Opening {item.pkg.name}…")
+            self.show_toast(_("🚀 Opening {name}…").format(name=item.pkg.name))
         except OSError as exc:
-            self.show_toast(f"😿 Couldn't open {item.pkg.name}: {exc}")
+            self.show_toast(_("😿 Couldn't open {name}: {error}").format(name=item.pkg.name,
+                                                                         error=exc))
         return GLib.SOURCE_REMOVE
 
     def _on_export(self) -> None:
         items = self.packages.shown_items()
         if not items:
-            self.show_toast("Nothing to export in this view")
+            self.show_toast(_("Nothing to export in this view"))
             return
 
         def save(path: str):
@@ -749,18 +771,36 @@ class UrpmWindow(Gtk.ApplicationWindow):
                 with open(path, "w", encoding="utf-8", newline="") as fh:
                     fh.write(render_export(items, path))
             except OSError as exc:
-                self.show_toast(f"😿 Couldn't save: {exc.strerror}")
+                self.show_toast(_("😿 Couldn't save: {error}").format(error=exc.strerror))
                 return
-            self.show_toast(f"💾 Exported {len(items):,} packages")
+            self.show_toast(ngettext("💾 Exported {n} package", "💾 Exported {n} packages",
+                                     len(items)).format(n=f"{len(items):,}"))
 
         choose_export_file(self, save)
 
+    def _on_move(self) -> None:
+        from urpm.ui.move import MoveDialog
+        by_source: dict[Source, list[Package]] = {}
+        for item in self.items:
+            by_source.setdefault(item.source, []).append(item.pkg)
+        installed = {src.id: pkgs for src, pkgs in by_source.items()}
+        self.move_dialog = MoveDialog(self, migrate.snapshot(by_source), installed,
+                                      self._install_apps, self.show_toast)
+        self.move_dialog.present()
+
+    def _install_apps(self, actions, count: int) -> None:
+        self._run_action(ngettext("Installing {n} app…", "Installing {n} apps…", count)
+                         .format(n=count), actions,
+                         ngettext("📦 Installed {n} app", "📦 Installed {n} apps", count)
+                         .format(n=count))
+
     def _on_shortcuts(self) -> None:
-        rows = (("Type anywhere", "Search"), ("Esc", "Clear search"), ("Ctrl+F", "Focus search"),
-                ("Enter / double-click", "Open the app"), ("Delete", "Remove package…"),
-                ("Ctrl+R / F5", "Reload packages"), ("Ctrl+U", "Check for updates"),
-                ("Ctrl+E", "Export list"), ("Ctrl+,", "Settings and themes"), ("Ctrl+Q", "Quit"))
-        dialog = Gtk.Window(transient_for=self, modal=True, title="Keyboard shortcuts",
+        rows = ((_("Type anywhere"), _("Search")), ("Esc", _("Clear search")),
+                ("Ctrl+F", _("Focus search")), (_("Enter / double-click"), _("Open the app")),
+                ("Delete", _("Remove package…")), ("Ctrl+R / F5", _("Reload packages")),
+                ("Ctrl+U", _("Check for updates")), ("Ctrl+E", _("Export list")),
+                ("Ctrl+,", _("Settings and themes")), ("Ctrl+Q", _("Quit")))
+        dialog = Gtk.Window(transient_for=self, modal=True, title=_("Keyboard shortcuts"),
                             css_classes=["urpm", "dialog-window"], resizable=False)
         grid = Gtk.Grid(column_spacing=24, row_spacing=10, css_classes=["dialog-body"])
         for i, (keys, what) in enumerate(rows):
@@ -777,14 +817,14 @@ class UrpmWindow(Gtk.ApplicationWindow):
         item = self._selected()
         command = item.source.remove_command(item.pkg) if item else ""
         if command:
-            self._copy(command, "📋 Uninstall command copied")
+            self._copy(command, _("📋 Uninstall command copied"))
         elif item:
-            self.show_toast("This source has no uninstall command")
+            self.show_toast(_("This source has no uninstall command"))
 
     def _on_copy_name(self) -> None:
         item = self._selected()
         if item:
-            self._copy(item.pkg.name, f"📋 Copied “{item.pkg.name}”")
+            self._copy(item.pkg.name, _("📋 Copied “{name}”").format(name=item.pkg.name))
 
     def show_toast(self, message: str) -> None:
         self.toast_label.set_label(message)

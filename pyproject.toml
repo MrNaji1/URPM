@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,8 @@ name = "urpm"
 dynamic = ["version"]
 description = "A cute GTK app that shows every package installed on your Linux machine"
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "MrNaji1" }]
 requires-python = ">=3.10"
 # PyGObject + GTK 4 come from your distro (see README), so they're not listed here:
@@ -18,18 +19,24 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: X11 Applications :: GTK",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Topic :: System :: Software Distribution",
+    "Natural Language :: English",
+    "Natural Language :: Arabic",
+    "Natural Language :: French",
+    "Natural Language :: German",
+    "Natural Language :: Portuguese (Brazilian)",
+    "Natural Language :: Spanish",
 ]
 
 [project.urls]
 Homepage = "https://github.com/MrNaji1/URPM"
 Issues = "https://github.com/MrNaji1/URPM/issues"
+Changelog = "https://github.com/MrNaji1/URPM/releases"
 
 [project.scripts]
-urpm = "urpm.ui.app:run"
+urpm = "urpm.cli:run"
 
 [tool.setuptools.dynamic]
 version = { attr = "urpm.__version__" }
@@ -38,12 +45,12 @@ version = { attr = "urpm.__version__" }
 include = ["urpm*"]
 
 [tool.setuptools.package-data]
-urpm = ["data/*", "data/icons/*"]
+urpm = ["data/*", "data/icons/*", "locale/*.po"]
 "urpm.ui" = ["*.css"]
 
 [tool.coverage.run]
 source = ["urpm"]
-omit = ["urpm/__main__.py"]  # three lines that just call main()
+omit = ["urpm/__main__.py"]  # two lines that just call run()
 
 [tool.coverage.report]
 show_missing = true

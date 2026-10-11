@@ -23,6 +23,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, GObject, Gtk, Pango  # noqa: E402
 
+from urpm.i18n import _  # noqa: E402
 from urpm.sources import Package, Source, human_size  # noqa: E402
 from urpm.sources.base import version_key  # noqa: E402
 from urpm.ui.widgets import (avatar_class, format_date, label, pill_classes,  # noqa: E402
@@ -92,7 +93,7 @@ class PackageTable(Gtk.Box):
         self._stale_ranks = {NAME, VERSION, SOURCE}
 
         self.store = Gio.ListStore(item_type=PackageItem)
-        self.view_filter = Gtk.CustomFilter.new(lambda item, *_: view_filter(item))
+        self.view_filter = Gtk.CustomFilter.new(lambda item, *_args: view_filter(item))
         in_view = Gtk.FilterListModel(model=self.store, filter=self.view_filter)
         self.search_filter = Gtk.CustomFilter.new(self._matches_search)
         matching = Gtk.FilterListModel(model=in_view, filter=self.search_filter)
@@ -104,15 +105,15 @@ class PackageTable(Gtk.Box):
 
         # Each column's sorter; the ranked ones say which rank they need.
         self._sorters: dict[Gtk.ColumnViewColumn, tuple[Gtk.NumericSorter, int | None]] = {}
-        self.col_name = self._add_column("Package", self._setup_name, self._bind_name,
+        self.col_name = self._add_column(_("Package"), self._setup_name, self._bind_name,
                                          "name_rank", NAME, expand=True)
-        self.col_version = self._add_column("Version", self._setup_version, self._bind_version,
+        self.col_version = self._add_column(_("Version"), self._setup_version, self._bind_version,
                                             "version_rank", VERSION, width=150)
-        self.col_source = self._add_column("Source", self._setup_source, self._bind_source,
+        self.col_source = self._add_column(_("Source"), self._setup_source, self._bind_source,
                                            "source_rank", SOURCE, width=104)
-        self.col_size = self._add_column("Size", self._setup_size, self._bind_size,
-                                         "size", None, width=140)
-        self.col_updated = self._add_column("Updated", self._setup_date, self._bind_date,
+        self.col_size = self._add_column(_("Size"), self._setup_size, self._bind_size,
+                                         "size", None, width=152)
+        self.col_updated = self._add_column(_("Updated"), self._setup_date, self._bind_date,
                                             "installed", None, width=116)
         # Clicking a header changes the view's own sorter; we hand the matching fast
         # sorter to the model ourselves (GTK 4.10+). Older GTK sorts through the view's
@@ -120,7 +121,7 @@ class PackageTable(Gtk.Box):
         self._header_sorter = self.view.get_sorter()
         self._direct = hasattr(self._header_sorter, "get_primary_sort_column")
         if self._direct:
-            self._header_sorter.connect("changed", lambda *_: self._sync_sorter())
+            self._header_sorter.connect("changed", lambda *_args: self._sync_sorter())
         else:
             self.shown.set_sorter(self._header_sorter)
         self.view.sort_by_column(self.col_name, Gtk.SortType.ASCENDING)
@@ -129,7 +130,7 @@ class PackageTable(Gtk.Box):
         self.view.connect("activate", lambda _view, pos: on_activate(self.shown.get_item(pos)))
         keys = Gtk.ShortcutController()
         keys.add_shortcut(Gtk.Shortcut.new(Gtk.ShortcutTrigger.parse_string("Delete"),
-                                           Gtk.CallbackAction.new(lambda *_: on_delete() or True)))
+                                           Gtk.CallbackAction.new(lambda *_args: on_delete() or True)))
         self.view.add_controller(keys)
 
         # AUTOMATIC (not NEVER) so the table doesn't force a huge minimum window width;
@@ -230,7 +231,7 @@ class PackageTable(Gtk.Box):
             change = Gtk.FilterChange.DIFFERENT
         self.search_filter.changed(change)
 
-    def _matches_search(self, item: PackageItem, *_) -> bool:
+    def _matches_search(self, item: PackageItem, *_args) -> bool:
         haystack = item.haystack
         for term in self.terms:
             if term not in haystack:
@@ -319,7 +320,7 @@ class PackageTable(Gtk.Box):
         pkg = item.pkg
         box.version.set_label(pkg.version)
         if pkg.held:
-            box.update.set_label("📌 held" + (f" · {pkg.update}" if pkg.update else ""))
+            box.update.set_label(_("📌 held") + (f" · {pkg.update}" if pkg.update else ""))
             box.update.set_css_classes(["pill", "pill-held"])
         elif pkg.security:
             box.update.set_label(f"🛡 {pkg.update}")

@@ -8,6 +8,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, Pango  # noqa: E402
 
 from urpm.duplicates import DuplicateGroup  # noqa: E402
+from urpm.i18n import _, ngettext  # noqa: E402
 from urpm.sources import human_size  # noqa: E402
 from urpm.ui.widgets import (avatar_class, clear, format_date, label, pill_classes,  # noqa: E402
                              short_label, show_icon)
@@ -37,16 +38,17 @@ class DuplicatesPage(Gtk.ScrolledWindow):
         self.groups = groups
         clear(self.cards)
         if not groups:
-            self.title.set_label("🎉 No duplicates")
-            self.subtitle.set_label("Every app is installed only once.")
+            self.title.set_label(_("🎉 No duplicates"))
+            self.subtitle.set_label(_("Every app is installed only once."))
             return
         wasted = sum(g.wasted for g in groups)
-        self.title.set_label(f"{len(groups)} app{'s are' if len(groups) != 1 else ' is'} "
-                             "installed more than once")
+        self.title.set_label(ngettext("{n} app is installed more than once",
+                                      "{n} apps are installed more than once",
+                                      len(groups)).format(n=len(groups)))
         self.subtitle.set_label(
-            f"Keeping just one copy of each could free {human_size(wasted)}. Pick the copy "
-            "you don't use and remove it." if wasted else
-            "Pick the copy you don't use and remove it.")
+            _("Keeping just one copy of each could free {size}. Pick the copy you don't use "
+              "and remove it.").format(size=human_size(wasted)) if wasted else
+            _("Pick the copy you don't use and remove it."))
         for group in groups:
             self.cards.append(self._card(group))
 
@@ -61,7 +63,8 @@ class DuplicatesPage(Gtk.ScrolledWindow):
             heading.append(label(group.name[:1].upper(), "avatar", avatar_class(group.name)))
         heading.append(label(group.name, "tool-title", xalign=0, hexpand=True))
         if group.wasted:
-            heading.append(label(f"{human_size(group.wasted)} could be freed", "pill",
+            heading.append(label(_("{size} could be freed").format(size=human_size(group.wasted)),
+                                 "pill",
                                  "pill-update", valign=Gtk.Align.CENTER))
         card.append(heading)
 
@@ -72,15 +75,16 @@ class DuplicatesPage(Gtk.ScrolledWindow):
             info = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True)
             info.append(label(copy.pkg.name, "pkg-name", xalign=0,
                               ellipsize=Pango.EllipsizeMode.END))
-            info.append(label(f"{copy.pkg.version} · {human_size(copy.pkg.size)} · "
-                              f"updated {format_date(copy.pkg.installed)}", "dim", "small",
+            info.append(label(f"{copy.pkg.version} · {human_size(copy.pkg.size)} · " +
+                              _("updated {date}").format(date=format_date(copy.pkg.installed)),
+                              "dim", "small",
                               xalign=0, ellipsize=Pango.EllipsizeMode.END))
             row.append(info)
-            show = Gtk.Button(label="Details", css_classes=["soft", "small-button"],
+            show = Gtk.Button(label=_("Details"), css_classes=["soft", "small-button"],
                               valign=Gtk.Align.CENTER)
             show.connect("clicked", lambda _b, c=copy: self._on_show(c))
             row.append(show)
-            remove = Gtk.Button(label="Remove this copy", css_classes=["danger", "small-button"],
+            remove = Gtk.Button(label=_("Remove this copy"), css_classes=["danger", "small-button"],
                                 valign=Gtk.Align.CENTER)
             remove.connect("clicked", lambda _b, c=copy: self._on_remove(c))
             row.append(remove)

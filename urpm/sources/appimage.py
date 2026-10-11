@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import re
 
+from urpm.i18n import _
+
 from .base import UNIVERSAL, Action, Details, Package, Source, can_write
 
 # Browsers and chat apps drop files here without asking, so AppImages found in them are
@@ -74,7 +76,7 @@ class AppImageSource(Source):
                 name=name,
                 version=version or "—",
                 source="appimage",
-                summary="Portable app",
+                summary=_("Portable app"),
                 size=st.st_size,
                 section=folder.replace(home, "~", 1) if folder.startswith(home) else folder,
                 installed=st.st_mtime,
@@ -84,10 +86,10 @@ class AppImageSource(Source):
 
     def details(self, pkg: Package) -> Details:
         return Details(
-            description="AppImages are single-file apps: no installation, no package manager. "
-                        "Removing one moves the file to the trash.",
-            fields=[("File", pkg.ident),
-                    ("Executable", "yes" if os.access(pkg.ident, os.X_OK) else "no")],
+            description=_("AppImages are single-file apps: no installation, no package "
+                          "manager. Removing one moves the file to the trash."),
+            fields=[(_("File"), pkg.ident),
+                    (_("Executable"), _("yes") if os.access(pkg.ident, os.X_OK) else _("no"))],
         )
 
     def files(self, pkg: Package) -> list[str]:
@@ -105,11 +107,11 @@ class AppImageSource(Source):
         folder = os.path.realpath(os.path.dirname(pkg.ident))
         untrusted = [os.path.realpath(os.path.expanduser(d)) for d in UNTRUSTED_DIRS]
         if not os.access(pkg.ident, os.X_OK):
-            return ("This file isn't marked as a program yet. Opening it will make it "
-                    "executable and run it with your permissions.")
+            return _("This file isn't marked as a program yet. Opening it will make it "
+                     "executable and run it with your permissions.")
         if folder in untrusted:
-            return ("This file is in a downloads folder, where web browsers save files "
-                    "without asking.")
+            return _("This file is in a downloads folder, where web browsers save files "
+                     "without asking.")
         return None
 
     def remove_action(self, pkg: Package) -> Action:

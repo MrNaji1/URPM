@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 import time
 
+from urpm.i18n import _
+
 from .base import (Cleanup, SYSTEM, Action, Details, Package, Source, apply_updates, desktop_launcher,
                    parse_fields, parse_size, run, which)
 
@@ -71,7 +73,7 @@ class PacmanSource(Source):
     kind = SYSTEM
 
     def list_packages(self) -> list[Package]:
-        return [pkg for pkg, _ in parse_pacman_info(run("pacman", "-Qi"))]
+        return [pkg for pkg, _extra in parse_pacman_info(run("pacman", "-Qi"))]
 
     def details(self, pkg: Package) -> Details:
         parsed = parse_pacman_info(run("pacman", "-Qi", pkg.name))
@@ -84,6 +86,21 @@ class PacmanSource(Source):
 
     def launch_argv(self, pkg: Package) -> list[str] | None:
         return desktop_launcher(self.files(pkg))
+
+    exists_check = ["pacman", "-Si"]
+
+    def installable(self, names: list[str]) -> set[str] | None:
+        if not names:
+            return None
+        text = run("pacman", "-Si", *names, ok_codes=(0, 1))
+        found = {line.partition(":")[2].strip() for line in text.splitlines()
+                 if line.startswith("Name ")}
+        return {n for n in names if n in found}
+
+    def install_actions(self, pkgs: list[Package]) -> list[Action]:
+        names = [p.name for p in pkgs]
+        return [Action(["pacman", "-S", "--needed", "--noconfirm", *names], root=True,
+                       pretty=f"sudo pacman -S --needed {' '.join(names)}")] if names else []
 
     def remove_action(self, pkg: Package) -> Action:
         return Action(["pacman", "-Rs", "--noconfirm", pkg.name], root=True,
@@ -118,8 +135,8 @@ class PacmanSource(Source):
         if orphans:
             sizes = {p.name: p.size for p in packages}
             found.append(Cleanup(
-                "pacman-orphans", "Orphaned packages",
-                "Dependencies that nothing installed needs any more.",
+                "pacman-orphans", _("Orphaned packages"),
+                _("Dependencies that nothing installed needs any more."),
                 self.label, sum(sizes.get(n, 0) for n in orphans), orphans,
                 [Action(["pacman", "-Rns", "--noconfirm", *orphans], root=True,
                         pretty=f"sudo pacman -Rns {' '.join(orphans)}")]))
@@ -127,9 +144,9 @@ class PacmanSource(Source):
             saved = parse_paccache_dry_run(run("paccache", "-dk1", ok_codes=(0, 1)))
             if saved:
                 found.append(Cleanup(
-                    "pacman-cache", "Old cached pacman packages",
-                    "Older versions pacman kept after updates. The newest copy of each is "
-                    "kept, so you can still reinstall without downloading.",
+                    "pacman-cache", _("Old cached pacman packages"),
+                    _("Older versions pacman kept after updates. The newest copy of each is "
+                      "kept, so you can still reinstall without downloading."),
                     self.label, saved, ["/var/cache/pacman/pkg"],
                     [Action(["paccache", "-rk1"], root=True)], kind="cache"))
         return found

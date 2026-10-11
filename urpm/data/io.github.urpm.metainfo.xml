@@ -27,6 +27,9 @@
   <url type="bugtracker">https://github.com/MrNaji1/URPM/issues</url>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="2.2.0" date="2026-10-11">
+      <description><p>Reach more people: move your apps to a new computer, a command-line companion (urpm list, dupes, clean, backup…), Flatpak permissions in plain words, and translations into Arabic, German, Spanish, French and Brazilian Portuguese. "Just mine" now leaves out what the installer put on the system.</p></description>
+    </release>
     <release version="2.1.0" date="2026-10-11">
       <description><p>Stay up to date: a History page showing everything installed, updated or removed, security updates highlighted in red, "Keep this version" to hold a package, and an optional background check that notifies you about new updates.</p></description>
     </release>

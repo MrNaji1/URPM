@@ -13,6 +13,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from urpm.i18n import _, ngettext
 from urpm.sources import Source, available_sources
 from urpm.sources.base import Package
 
@@ -46,17 +47,17 @@ def key(src: Source, pkg: Package) -> str:
 def message(updates: list[tuple[Source, Package]]) -> tuple[str, str]:
     """('5 updates available (2 security)', 'Firefox, Discord, Telegram and 2 more. …')."""
     count = len(updates)
-    security = sum(1 for _, pkg in updates if pkg.security)
-    summary = f"{count} update{'s' if count != 1 else ''} available"
+    security = sum(1 for _src, pkg in updates if pkg.security)
+    summary = ngettext("{n} update available", "{n} updates available", count).format(n=count)
     if security:
-        summary += f" ({security} security)"
+        summary += " " + _("({n} security)").format(n=security)
     # Apps you installed come first (their names mean something), security fixes next.
     ordered = sorted(updates, key=lambda u: (not u[1].explicit, not u[1].security, u[1].name))
-    names = [pkg.name for _, pkg in ordered[:MAX_NAMES]]
+    names = [pkg.name for _src, pkg in ordered[:MAX_NAMES]]
     listed = ", ".join(names)
     if count > MAX_NAMES:
-        listed += f" and {count - MAX_NAMES} more"
-    return summary, f"{listed}. Open URPM to update."
+        listed = _("{names} and {n} more").format(names=listed, n=count - MAX_NAMES)
+    return summary, _("{names}. Open URPM to update.").format(names=listed)
 
 
 def send(summary: str, body: str, urgent: bool = False) -> bool:
@@ -99,7 +100,7 @@ def check(sources: list[Source] | None = None) -> str | None:
     if not fresh:
         return None
     summary, body = message(updates)
-    send(summary, body, urgent=any(pkg.security for _, pkg in fresh))
+    send(summary, body, urgent=any(pkg.security for _src, pkg in fresh))
     return summary
 
 

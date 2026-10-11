@@ -47,10 +47,13 @@ class BrewSource(Source):
 
     def files(self, pkg: Package) -> list[str]:
         root = os.path.join(run("brew", "--cellar").strip(), pkg.name)
-        return [os.path.join(d, f) for d, _, names in os.walk(root) for f in names]
+        return [os.path.join(d, f) for d, _dirs, names in os.walk(root) for f in names]
 
     def remove_action(self, pkg: Package) -> Action:
         return Action(["brew", "uninstall", pkg.name])
+
+    def install_actions(self, pkgs: list[Package]) -> list[Action]:
+        return [Action(["brew", "install", *(p.name for p in pkgs)])] if pkgs else []
 
     def update_actions(self, pkgs: list[Package]) -> list[Action]:
         return [Action(["brew", "upgrade", *(p.name for p in pkgs)])]

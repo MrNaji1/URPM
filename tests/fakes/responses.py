@@ -10,7 +10,7 @@ T = "\t"
 
 RESPONSES = [
     # ------------------------------------------------------------------ Debian / APT
-    ("apt-mark", "showmanual", "firefox\n7zip\nbind9-libs\n", 0),
+    ("apt-mark", "showmanual", "firefox\n7zip\nbind9-libs\nnano\n", 0),
     ("apt-mark", "showhold", "7zip\n", 0),
     ("dpkg", "--print-architecture", "amd64\n", 0),
     ("dpkg-query", "-W -f *", "".join(T.join(row) + "\n" for row in [
@@ -22,6 +22,8 @@ RESPONSES = [
          "7-Zip file archiver"],
         # apt-mark lists this as "bind9-libs": dpkg adds the native ":amd64" suffix
         ["bind9-libs:amd64", "1:9.18.28", "3000", "libs", "ii ", "", "Shared DNS libraries"],
+        # "manually installed" by the distro installer (see dpkg/initial-status.gz)
+        ["nano", "7.2-2", "880", "editors", "ii ", "", "small, friendly text editor"],
         ["removed-pkg", "1.0", "10", "misc", "rc ", "", "Removed, config files left"],
     ]), 0),
     ("dpkg-query", "-s firefox", """Package: firefox
@@ -45,6 +47,10 @@ Description: Safe and easy web browser from Mozilla
     ("apt-cache", "rdepends --installed *libgtk-4-1*",
      "libgtk-4-1\nReverse Depends:\n  firefox\n |gnome-text-editor\n  firefox\n", 0),
     ("apt-cache", "rdepends --installed *firefox", "firefox\nReverse Depends:\n", 0),
+    # Which packages the configured repositories offer (for "move to a new computer"):
+    # vlc is there, brave-browser needs Brave's own repository.
+    ("apt-cache", "show --no-all-versions *",
+     "Package: vlc\nVersion: 3.0.20\n\nPackage: firefox\nVersion: 131.0\n", 0),
     ("dpkg-query", "-S *", "firefox: {root}/usr/share/applications/firefox.desktop\n"
                            "dpkg-query: no path found matching pattern x\n", 1),
     ("apt", "list --upgradable",
@@ -116,6 +122,8 @@ Install Reason  : Explicitly installed
     ("checkupdates", "", "firefox 131.0-1 -> 132.0-1\n", 0),
     ("pacman", "-Qi bash", "Name            : bash\nRequired By     : firefox  readline\n", 0),
     ("pacman", "-Qdtq", "bash\n", 0),
+    # exits 1 because one of the names isn't in any repository
+    ("pacman", "-Si *", "Repository      : extra\nName            : htop\nVersion         : 3.3\n", 1),
     ("arch-audit", "-uq", "firefox\n", 0),
     ("paccache", "-dk1", "==> finished dry run: 3 candidates (disk space saved: 120.36 MiB)\n", 0),
 
@@ -162,6 +170,15 @@ Notes - Write things down
      License: GPL-3.0
 """, 0),
     ("flatpak", "mask --system", "org.example.Notes\n", 0),
+    ("flatpak", "info --show-permissions --system org.example.Notes/x86_64/stable", """[Context]
+shared=network;ipc;
+sockets=wayland;fallback-x11;pulseaudio;!ssh-auth;
+devices=dri;
+filesystems=xdg-documents;home:ro;
+
+[Session Bus Policy]
+org.freedesktop.Notifications=talk
+""", 0),
     ("flatpak", "history --columns=*",
      "Oct  1 09:00:00\tdeploy install\torg.example.Notes\tstable\tsystem\n"
      "Oct  2 10:00:00\tdeploy update\torg.example.Notes\tstable\tsystem\n"

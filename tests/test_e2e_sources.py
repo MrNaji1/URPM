@@ -47,11 +47,13 @@ class DebianTests(FakeSystemTest):
         self.assertTrue(src.available())
         pkgs = self.by_name(src.list_packages())
         self.assertEqual(set(pkgs), {"firefox", "libgtk-4-1:amd64", "7zip",
-                                     "bind9-libs:amd64"})  # the "rc" package is skipped
+                                     "bind9-libs:amd64", "nano"})  # the "rc" package is skipped
         firefox = pkgs["firefox"]
         self.assertTrue(firefox.explicit)
         self.assertFalse(pkgs["libgtk-4-1:amd64"].explicit)
         self.assertTrue(pkgs["bind9-libs:amd64"].explicit)  # native-arch suffix matched
+        # "manually installed", but by the distro installer, not by you
+        self.assertFalse(pkgs["nano"].explicit)
         self.assertEqual(firefox.size, 260000 * 1024)
         self.assertIsNotNone(firefox.installed)          # from dpkg/info/firefox.list
 

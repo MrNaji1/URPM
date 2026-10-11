@@ -51,6 +51,14 @@ jobs:
       - run: bash -n install.sh
       - run: make deb
       - run: dpkg-deb -I dist/*.deb && dpkg-deb -c dist/*.deb
+      - name: Ubuntu PPA source package builds
+        run: |
+          cp -r packaging/debian/debian debian
+          dpkg-buildpackage -b -us -uc
+          dpkg-source -b .
+          rm -rf debian
+      - name: PyPI package builds and passes twine's checks
+        run: pipx run build && pipx run twine check dist/*.whl dist/urpm-*.tar.gz
       - uses: actions/upload-artifact@v4
         with:
           name: urpm-deb

@@ -15,7 +15,7 @@ APPDIR  := $(DESTDIR)$(PREFIX)/share/applications
 ICONDIR := $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps
 METADIR := $(DESTDIR)$(PREFIX)/share/metainfo
 
-.PHONY: all install uninstall test test-ui deb run clean
+.PHONY: all install uninstall test test-ui deb run clean pot
 
 all:
 	@echo "URPM $(VERSION): try 'make run', 'make test', 'sudo make install' or 'make deb'"
@@ -37,6 +37,7 @@ install:
 	install -d $(LIBDIR) $(BINDIR) $(APPDIR) $(ICONDIR) $(METADIR)
 	cp -r urpm $(LIBDIR)/
 	find $(LIBDIR) -name __pycache__ -prune -exec rm -rf {} +
+	chmod -R u=rwX,go=rX $(LIBDIR)
 	sed 's|@PREFIX@|$(PREFIX)/share/urpm|' urpm/data/urpm-launcher.sh.in > $(BINDIR)/urpm
 	chmod 755 $(BINDIR)/urpm
 	install -m 644 urpm/data/$(APP_ID).desktop $(APPDIR)/$(APP_ID).desktop
@@ -50,6 +51,10 @@ uninstall:
 
 deb:
 	./packaging/debian/build-deb.sh
+
+# Collect new translatable strings into po/urpm.pot and every urpm/locale/*.po
+pot:
+	python3 po/update.py
 
 clean:
 	rm -rf dist build *.egg-info

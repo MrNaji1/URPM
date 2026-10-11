@@ -1,0 +1,10 @@
+urpm (2.2.0) noble; urgency=medium
+
+  * Move to a new computer: save your apps, reinstall them anywhere.
+  * Command-line companion: urpm list, search, info, updates, dupes, clean,
+    history, export, backup and restore.
+  * Flatpak permissions in plain words, and each app's data folder.
+  * Translations: Arabic, German, Spanish, French and Brazilian Portuguese.
+  * "Just mine" no longer counts the packages the installer put on the system.
+
+ -- MrNaji1 <mohamad.naji2222@gmail.com>  Sun, 11 Oct 2026 18:00:00 +0300

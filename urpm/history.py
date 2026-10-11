@@ -19,6 +19,14 @@ INSTALLED, UPDATED, REMOVED, DOWNGRADED, REINSTALLED = (
 MAX_EVENTS = 5000  # per package manager; older history is rarely interesting
 
 
+def action_word(action: str) -> str:
+    """'Installed', 'Updated'… in the user's language."""
+    from urpm.i18n import _
+    return {INSTALLED: _("Installed"), UPDATED: _("Updated"), REMOVED: _("Removed"),
+            DOWNGRADED: _("Downgraded"), REINSTALLED: _("Reinstalled")}.get(action,
+                                                                           action.title())
+
+
 @dataclass
 class Event:
     time: float               # unix timestamp
@@ -78,7 +86,7 @@ def parse_apt_history(text: str) -> list[Event]:
     events: list[Event] = []
     when = None
     for line in text.splitlines():
-        key, _, value = line.partition(": ")
+        key, _sep, value = line.partition(": ")
         if key == "Start-Date":
             when = parse_timestamp(" ".join(value.split()), ("%Y-%m-%d %H:%M:%S",))
         elif key in _APT_ACTIONS and when is not None:
@@ -109,7 +117,7 @@ def parse_pacman_log(text: str) -> list[Event]:
         when = parse_timestamp(match["when"], ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%d %H:%M"))
         if when is None:
             continue
-        old, _, new = match["versions"].partition(" -> ")
+        old, _sep, new = match["versions"].partition(" -> ")
         events.append(Event(when, _PACMAN_ACTIONS[match["action"]], match["name"],
                             new or old, old if new else "", "pacman"))
     return events

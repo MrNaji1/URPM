@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 
+from urpm.i18n import _
+
 from .base import (UNIVERSAL, Action, Cleanup, Details, Package, Source, apply_updates,
                    parse_fields, run)
 
@@ -28,6 +30,7 @@ def parse_snap_list(text: str) -> list[Package]:
             section=f"{tracking} · {publisher.rstrip('*✓')}",
             explicit=not (notes & SYSTEM_NOTES),
             ident=f"{name}_{rev}",
+            extra={"classic": "1"} if "classic" in notes else {},
         ))
     return packages
 
@@ -91,6 +94,15 @@ class SnapSource(Source):
         return Action(["snap", "remove", pkg.name], root=True,
                       pretty=f"sudo snap remove {pkg.name}")
 
+    def install_actions(self, pkgs: list[Package]) -> list[Action]:
+        # Classic snaps need --classic, which `snap install` only takes for one snap at a time.
+        strict = [p.name for p in pkgs if not p.extra.get("classic")]
+        actions = [Action(["snap", "install", *strict], root=True,
+                          pretty=f"sudo snap install {' '.join(strict)}")] if strict else []
+        return actions + [Action(["snap", "install", "--classic", p.name], root=True,
+                                 pretty=f"sudo snap install --classic {p.name}")
+                          for p in pkgs if p.extra.get("classic")]
+
     def update_actions(self, pkgs: list[Package]) -> list[Action]:
         names = [p.name for p in pkgs]
         return [Action(["snap", "refresh", *names], root=True,
@@ -118,9 +130,9 @@ class SnapSource(Source):
             except OSError:
                 pass
         return [Cleanup(
-            "snap-old-revisions", "Old Snap versions",
-            "Snap keeps the previous version of every app so it can roll back. These old "
-            "copies aren't running and can go.",
+            "snap-old-revisions", _("Old Snap versions"),
+            _("Snap keeps the previous version of every app so it can roll back. These old "
+              "copies aren't running and can go."),
             self.label, size, [f"{name} (revision {rev})" for name, rev in old],
             [Action(["snap", "remove", name, f"--revision={rev}"], root=True)
              for name, rev in old])]

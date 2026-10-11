@@ -50,7 +50,9 @@ def short_label(source: Source) -> str:
 
 
 def format_date(ts: float | None) -> str:
-    return time.strftime("%b %d, %Y", time.localtime(ts)) if ts else "—"
+    from urpm.i18n import _, strftime
+    # Translators can reorder this date format, e.g. "%d %b %Y".
+    return strftime(_("%b %d, %Y"), time.localtime(ts)) if ts else "—"
 
 
 _textures: dict[str, Gdk.Texture | None] = {}

@@ -29,3 +29,19 @@ jobs:
           else
             gh release create "$tag" dist/*.deb dist/*.tar.gz dist/SHA256SUMS --title "URPM ${tag#v}" --generate-notes
           fi
+
+  # Publishes to PyPI with "trusted publishing" (no password or token stored anywhere).
+  # Off until you set it up: see docs/PUBLISHING.md, then add the repository variable
+  # PYPI_PUBLISH = true (Settings → Secrets and variables → Actions → Variables).
+  pypi:
+    needs: release
+    if: vars.PYPI_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - run: pipx run build
+      - uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,0 +1,1780 @@
+# Translations for URPM.
+# This file is distributed under the same license as URPM (MIT).
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: URPM 2.2.0\n"
+"Report-Msgid-Bugs-To: https://github.com/MrNaji1/URPM/issues\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: urpm/cleanup.py
+msgid "pip download cache"
+msgstr "Cache de téléchargement de pip"
+
+#: urpm/cleanup.py
+msgid "Python packages pip downloaded before. They'll be downloaded again if you install them later."
+msgstr "Paquets Python déjà téléchargés par pip. Ils seront téléchargés à nouveau si vous les installez plus tard."
+
+#: urpm/cleanup.py
+msgid "npm download cache"
+msgstr "Cache de téléchargement de npm"
+
+#: urpm/cleanup.py
+msgid "Copies of every package npm has downloaded. npm fetches them again when a project needs them."
+msgstr "Copies de tous les paquets téléchargés par npm. npm les récupère à nouveau quand un projet en a besoin."
+
+#: urpm/cleanup.py
+msgid "Cargo download cache"
+msgstr "Cache de téléchargement de Cargo"
+
+#: urpm/cleanup.py
+msgid "Downloaded crates and their unpacked sources. Cargo downloads them again when a project needs them."
+msgstr "Crates téléchargées et leurs sources décompressées. Cargo les télécharge à nouveau quand un projet en a besoin."
+
+#: urpm/cleanup.py
+msgid "Old Homebrew versions and downloads"
+msgstr "Anciennes versions et téléchargements de Homebrew"
+
+#: urpm/cleanup.py
+msgid "Older versions of upgraded formulae and cached downloads."
+msgstr "Anciennes versions des formules mises à jour et téléchargements en cache."
+
+#: urpm/cli.py
+#, python-brace-format
+msgid ""
+"URPM {version}: every package on your computer, in one place\n"
+"\n"
+"usage: urpm [command] [options]\n"
+"\n"
+"  (no command)          open the URPM window\n"
+"  list                  list packages   --mine  --updates  --source ID  --json\n"
+"  search WORDS…         find packages by name or description\n"
+"  info NAME             everything about one package\n"
+"  updates               check for updates (🛡 marks security fixes)\n"
+"  dupes                 apps installed more than once\n"
+"  clean                 what can be cleaned up and how much space it frees\n"
+"                        (shows the commands; nothing is removed)\n"
+"  history               what was installed, updated or removed   --days N\n"
+"  export FILE           save the list as .csv, .json or .txt\n"
+"  backup FILE           save the apps you installed, to move to a new computer\n"
+"                        (also writes FILE.sh, a script that reinstalls them)\n"
+"  restore FILE          show what's missing on this computer   --install to install it\n"
+"\n"
+"  --check-updates       check once and notify about new updates (for timers)\n"
+"  --install-desktop     add URPM to your app menu (for pip / pipx installs)\n"
+"  --uninstall-desktop   remove it from your app menu again\n"
+"  --version             print the version\n"
+"  -h, --help            show this help\n"
+msgstr ""
+"URPM {version} : tous les paquets de votre ordinateur, au même endroit\n"
+"\n"
+"utilisation : urpm [commande] [options]\n"
+"\n"
+"  (sans commande)       ouvre la fenêtre d'URPM\n"
+"  list                  liste les paquets   --mine  --updates  --source ID  --json\n"
+"  search WORDS…         cherche des paquets par nom ou description\n"
+"  info NAME             tout sur un paquet\n"
+"  updates               cherche des mises à jour (🛡 signale les correctifs de sécurité)\n"
+"  dupes                 applications installées plusieurs fois\n"
+"  clean                 ce qui peut être nettoyé et l'espace que cela libère\n"
+"                        (affiche les commandes ; rien n'est supprimé)\n"
+"  history               ce qui a été installé, mis à jour ou supprimé   --days N\n"
+"  export FILE           enregistre la liste en .csv, .json ou .txt\n"
+"  backup FILE           enregistre vos applications pour un nouvel ordinateur\n"
+"                        (crée aussi FILE.sh, un script qui les réinstalle)\n"
+"  restore FILE          affiche ce qui manque sur cet ordinateur   --install pour l'installer\n"
+"\n"
+"  --check-updates       vérifie une fois et signale les nouvelles mises à jour (pour les tâches planifiées)\n"
+"  --install-desktop     ajoute URPM au menu des applications (installations pip / pipx)\n"
+"  --uninstall-desktop   le retire à nouveau du menu des applications\n"
+"  --version             affiche la version\n"
+"  -h, --help            affiche cette aide\n"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "Reading {sources}…"
+msgstr "Lecture de {sources}…"
+
+#: urpm/cli.py urpm/ui/window.py
+msgid "Checking for updates…"
+msgstr "Recherche de mises à jour…"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "Couldn't read {what}"
+msgstr "Impossible de lire {what}"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "{option} needs a value"
+msgstr "{option} a besoin d'une valeur"
+
+#: urpm/cli.py urpm/ui/cleanup_page.py
+#, python-brace-format
+msgid "{n} package"
+msgid_plural "{n} packages"
+msgstr[0] "{n} paquet"
+msgstr[1] "{n} paquets"
+
+#: urpm/cli.py
+msgid "What should I search for? Try: urpm search firefox"
+msgstr "Que faut-il chercher ? Essayez : urpm search firefox"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "Nothing matches “{query}”."
+msgstr "Rien ne correspond à « {query} »."
+
+#: urpm/cli.py
+msgid "Which package? Try: urpm info firefox"
+msgstr "Quel paquet ? Essayez : urpm info firefox"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "“{name}” isn't installed. Try: urpm search {name}"
+msgstr "« {name} » n'est pas installé. Essayez : urpm search {name}"
+
+#: urpm/cli.py urpm/ui/details.py urpm/ui/table.py
+msgid "Size"
+msgstr "Taille"
+
+#: urpm/cli.py urpm/ui/details.py
+msgid "Section"
+msgstr "Section"
+
+#: urpm/cli.py urpm/ui/details.py
+msgid "ID"
+msgstr "ID"
+
+#: urpm/cli.py
+msgid "Homepage"
+msgstr "Site web"
+
+#: urpm/cli.py urpm/history.py urpm/ui/history_page.py
+msgid "Installed"
+msgstr "Installé"
+
+#: urpm/cli.py
+msgid "by you"
+msgstr "par vous"
+
+#: urpm/cli.py urpm/ui/history_page.py
+msgid "as a dependency"
+msgstr "comme dépendance"
+
+#: urpm/cli.py urpm/ui/duplicates_page.py urpm/ui/history_page.py
+msgid "Details"
+msgstr "Détails"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "couldn't load: {error}"
+msgstr "impossible de charger : {error}"
+
+#: urpm/cli.py
+msgid "Needed by"
+msgstr "Requis par"
+
+#: urpm/cli.py
+msgid "nothing else installed"
+msgstr "aucun autre paquet installé"
+
+#: urpm/cli.py
+msgid "Permissions"
+msgstr "Permissions"
+
+#: urpm/cli.py
+msgid "Everything is up to date."
+msgstr "Tout est à jour."
+
+#: urpm/cli.py urpm/notify.py
+#, python-brace-format
+msgid "{n} update available"
+msgid_plural "{n} updates available"
+msgstr[0] "{n} mise à jour disponible"
+msgstr[1] "{n} mises à jour disponibles"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "{n} security fix"
+msgid_plural "{n} security fixes"
+msgstr[0] "{n} correctif de sécurité"
+msgstr[1] "{n} correctifs de sécurité"
+
+#: urpm/cli.py
+msgid "No app is installed more than once."
+msgstr "Aucune application n'est installée plusieurs fois."
+
+#: urpm/cli.py urpm/ui/duplicates_page.py
+#, python-brace-format
+msgid "{size} could be freed"
+msgstr "Espace libérable : {size}"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "{n} app installed more than once"
+msgid_plural "{n} apps installed more than once"
+msgstr[0] "{n} application installée plusieurs fois"
+msgstr[1] "{n} applications installées plusieurs fois"
+
+#: urpm/cli.py urpm/ui/cleanup_page.py
+msgid "Looking for things to clean up…"
+msgstr "Recherche de ce qui peut être nettoyé…"
+
+#: urpm/cli.py
+msgid "Nothing to clean up."
+msgstr "Rien à nettoyer."
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "{size} can be freed."
+msgstr "Vous pouvez libérer {size}."
+
+#: urpm/cli.py
+msgid "Nothing was removed: run the commands above, or use the Cleanup page in URPM."
+msgstr "Rien n'a été supprimé : lancez les commandes ci-dessus, ou utilisez la page Nettoyage d'URPM."
+
+#: urpm/cli.py
+msgid "--days needs a number"
+msgstr "--days a besoin d'un nombre"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "No changes in the last {days} days."
+msgstr "Aucun changement ces {days} derniers jours."
+
+#: urpm/cli.py
+msgid "Where should I save it? Try: urpm export packages.csv"
+msgstr "Où faut-il l'enregistrer ? Essayez : urpm export paquets.csv"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "Saved {n} packages to {file}"
+msgstr "{n} paquets enregistrés dans {file}"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "Saved {n} app to {file}"
+msgid_plural "Saved {n} apps to {file}"
+msgstr[0] "{n} application enregistrée dans {file}"
+msgstr[1] "{n} applications enregistrées dans {file}"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "On your new computer, open {file} with URPM (menu → Move to a new computer), or run: sh {script}"
+msgstr "Sur votre nouvel ordinateur, ouvrez {file} avec URPM (menu → Passer à un nouvel ordinateur), ou lancez : sh {script}"
+
+#: urpm/cli.py
+msgid "Which file? Try: urpm restore my-apps.json"
+msgstr "Quel fichier ? Essayez : urpm restore mes-applis.json"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "{n} app in this list"
+msgid_plural "{n} apps in this list"
+msgstr[0] "{n} application dans cette liste"
+msgstr[1] "{n} applications dans cette liste"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "saved on {system}"
+msgstr "enregistrée sur {system}"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "{missing} to install, {present} already here"
+msgstr "{missing} à installer, {present} déjà là"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "Not found in this computer's package sources (add their repositories first): {names}"
+msgstr "Introuvables dans les sources de paquets de cet ordinateur (ajoutez d'abord leurs dépôts) : {names}"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "{label} isn't on this computer, so these are skipped: {names}"
+msgstr "{label} n'est pas présent sur cet ordinateur, celles-ci sont donc ignorées : {names}"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "Install these {label} apps yourself: {names}"
+msgstr "Installez vous-même ces applications {label} : {names}"
+
+#: urpm/cli.py
+msgid "Nothing to install."
+msgstr "Rien à installer."
+
+#: urpm/cli.py
+msgid "Nothing was installed. Run again with --install to install them."
+msgstr "Rien n'a été installé. Relancez avec --install pour les installer."
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "😿 That failed (exit code {code}). Stopping here."
+msgstr "😿 Échec (code de sortie {code}). Arrêt ici."
+
+#: urpm/cli.py
+msgid "All done!"
+msgstr "Terminé !"
+
+#: urpm/cli.py
+#, python-brace-format
+msgid "Unknown command: {command}"
+msgstr "Commande inconnue : {command}"
+
+#: urpm/cli.py
+msgid "Run `urpm --help` to see what URPM can do."
+msgstr "Lancez `urpm --help` pour voir tout ce qu'URPM sait faire."
+
+#: urpm/history.py urpm/ui/details.py urpm/ui/history_page.py urpm/ui/table.py
+msgid "Updated"
+msgstr "Mis à jour"
+
+#: urpm/history.py urpm/ui/history_page.py
+msgid "Removed"
+msgstr "Supprimé"
+
+#: urpm/history.py
+msgid "Downgraded"
+msgstr "Rétrogradé"
+
+#: urpm/history.py
+msgid "Reinstalled"
+msgstr "Réinstallé"
+
+#: urpm/i18n.py
+msgid "Jan"
+msgstr "janv."
+
+#: urpm/i18n.py
+msgid "Feb"
+msgstr "févr."
+
+#: urpm/i18n.py
+msgid "Mar"
+msgstr "mars"
+
+#: urpm/i18n.py
+msgid "Apr"
+msgstr "avr."
+
+#: urpm/i18n.py
+msgid "May"
+msgstr "mai"
+
+#: urpm/i18n.py
+msgid "Jun"
+msgstr "juin"
+
+#: urpm/i18n.py
+msgid "Jul"
+msgstr "juil."
+
+#: urpm/i18n.py
+msgid "Aug"
+msgstr "août"
+
+#: urpm/i18n.py
+msgid "Sep"
+msgstr "sept."
+
+#: urpm/i18n.py
+msgid "Oct"
+msgstr "oct."
+
+#: urpm/i18n.py
+msgid "Nov"
+msgstr "nov."
+
+#: urpm/i18n.py
+msgid "Dec"
+msgstr "déc."
+
+#: urpm/i18n.py
+msgid "Monday"
+msgstr "lundi"
+
+#: urpm/i18n.py
+msgid "Tuesday"
+msgstr "mardi"
+
+#: urpm/i18n.py
+msgid "Wednesday"
+msgstr "mercredi"
+
+#: urpm/i18n.py
+msgid "Thursday"
+msgstr "jeudi"
+
+#: urpm/i18n.py
+msgid "Friday"
+msgstr "vendredi"
+
+#: urpm/i18n.py
+msgid "Saturday"
+msgstr "samedi"
+
+#: urpm/i18n.py
+msgid "Sunday"
+msgstr "dimanche"
+
+#: urpm/migrate.py
+msgid "This file isn't a URPM app list"
+msgstr "Ce fichier n'est pas une liste d'applications URPM"
+
+#: urpm/migrate.py
+msgid "This app list was saved by a newer URPM. Please update URPM first."
+msgstr "Cette liste a été enregistrée par une version plus récente d'URPM. Mettez d'abord URPM à jour."
+
+#: urpm/notify.py
+#, python-brace-format
+msgid "({n} security)"
+msgstr "({n} de sécurité)"
+
+#: urpm/notify.py
+#, python-brace-format
+msgid "{names} and {n} more"
+msgstr "{names} et {n} de plus"
+
+#: urpm/notify.py
+#, python-brace-format
+msgid "{names}. Open URPM to update."
+msgstr "{names}. Ouvrez URPM pour mettre à jour."
+
+#: urpm/sources/__init__.py
+msgid "SYSTEM"
+msgstr "SYSTÈME"
+
+#: urpm/sources/__init__.py
+msgid "APPS"
+msgstr "APPLICATIONS"
+
+#: urpm/sources/__init__.py
+msgid "DEVELOPER"
+msgstr "DÉVELOPPEMENT"
+
+#: urpm/sources/appimage.py
+msgid "Portable app"
+msgstr "Application portable"
+
+#: urpm/sources/appimage.py
+msgid "AppImages are single-file apps: no installation, no package manager. Removing one moves the file to the trash."
+msgstr "Les AppImage sont des applications en un seul fichier : pas d'installation, pas de gestionnaire de paquets. En supprimer une déplace le fichier dans la corbeille."
+
+#: urpm/sources/appimage.py
+msgid "File"
+msgstr "Fichier"
+
+#: urpm/sources/appimage.py
+msgid "Executable"
+msgstr "Exécutable"
+
+#: urpm/sources/appimage.py
+msgid "yes"
+msgstr "oui"
+
+#: urpm/sources/appimage.py
+msgid "no"
+msgstr "non"
+
+#: urpm/sources/appimage.py
+msgid "This file isn't marked as a program yet. Opening it will make it executable and run it with your permissions."
+msgstr "Ce fichier n'est pas encore marqué comme programme. L'ouvrir le rendra exécutable et le lancera avec vos permissions."
+
+#: urpm/sources/appimage.py
+msgid "This file is in a downloads folder, where web browsers save files without asking."
+msgstr "Ce fichier se trouve dans un dossier de téléchargements, où les navigateurs web enregistrent des fichiers sans demander."
+
+#: urpm/sources/base.py urpm/sources/flatpak.py
+msgid "new build"
+msgstr "nouvelle compilation"
+
+#: urpm/sources/cargo.py urpm/sources/pipx.py
+#, python-brace-format
+msgid "Provides: {commands}"
+msgstr "Fournit : {commands}"
+
+#: urpm/sources/dpkg.py
+msgid "Unused APT packages"
+msgstr "Paquets APT inutilisés"
+
+#: urpm/sources/dpkg.py urpm/sources/rpm.py
+msgid "Packages that were installed as dependencies of something you've since removed. Nothing installed needs them any more."
+msgstr "Paquets installés comme dépendances de quelque chose que vous avez supprimé depuis. Plus rien d'installé n'en a besoin."
+
+#: urpm/sources/dpkg.py
+msgid "Downloaded APT packages"
+msgstr "Paquets APT téléchargés"
+
+#: urpm/sources/dpkg.py
+msgid "Copies of .deb files APT downloaded to install or update packages. They're no longer needed and can be downloaded again."
+msgstr "Copies des fichiers .deb téléchargés par APT pour installer ou mettre à jour des paquets. Ils ne sont plus nécessaires et peuvent être téléchargés à nouveau."
+
+#: urpm/sources/eopkg.py
+msgid "newer release"
+msgstr "version plus récente"
+
+#: urpm/sources/flatpak.py
+msgid "Runtime"
+msgstr "Environnement d'exécution"
+
+#: urpm/sources/flatpak.py
+msgid "App"
+msgstr "Application"
+
+#: urpm/sources/flatpak.py
+msgid "Your Downloads folder"
+msgstr "Votre dossier Téléchargements"
+
+#: urpm/sources/flatpak.py
+msgid "Your Documents folder"
+msgstr "Votre dossier Documents"
+
+#: urpm/sources/flatpak.py
+msgid "Your Pictures folder"
+msgstr "Votre dossier Images"
+
+#: urpm/sources/flatpak.py
+msgid "Your Music folder"
+msgstr "Votre dossier Musique"
+
+#: urpm/sources/flatpak.py
+msgid "Your Videos folder"
+msgstr "Votre dossier Vidéos"
+
+#: urpm/sources/flatpak.py
+msgid "Your Desktop folder"
+msgstr "Votre dossier Bureau"
+
+#: urpm/sources/flatpak.py
+msgid "Sound and screen sharing (PipeWire)"
+msgstr "Son et partage d'écran (PipeWire)"
+
+#: urpm/sources/flatpak.py
+msgid "X11 display: can see what you type in other X11 apps"
+msgstr "Affichage X11 : peut voir ce que vous tapez dans les autres applications X11"
+
+#: urpm/sources/flatpak.py
+msgid "Sound and microphone"
+msgstr "Son et microphone"
+
+#: urpm/sources/flatpak.py
+msgid "Talks to every system service"
+msgstr "Communique avec tous les services du système"
+
+#: urpm/sources/flatpak.py
+msgid "Talks to every app and service in your session"
+msgstr "Communique avec toutes les applications et tous les services de votre session"
+
+#: urpm/sources/flatpak.py
+msgid "Uses your SSH keys"
+msgstr "Utilise vos clés SSH"
+
+#: urpm/sources/flatpak.py
+msgid "Uses your GPG keys"
+msgstr "Utilise vos clés GPG"
+
+#: urpm/sources/flatpak.py
+msgid "Printers"
+msgstr "Imprimantes"
+
+#: urpm/sources/flatpak.py
+msgid "Smart cards"
+msgstr "Cartes à puce"
+
+#: urpm/sources/flatpak.py
+msgid "All devices: camera, USB, game controllers…"
+msgstr "Tous les périphériques : caméra, USB, manettes de jeu…"
+
+#: urpm/sources/flatpak.py
+msgid "Graphics card acceleration"
+msgstr "Accélération par la carte graphique"
+
+#: urpm/sources/flatpak.py
+msgid "Virtual machines (KVM)"
+msgstr "Machines virtuelles (KVM)"
+
+#: urpm/sources/flatpak.py
+msgid "Input devices"
+msgstr "Périphériques d'entrée"
+
+#: urpm/sources/flatpak.py
+msgid "USB devices"
+msgstr "Périphériques USB"
+
+#: urpm/sources/flatpak.py
+msgid "Internet access"
+msgstr "Accès à Internet"
+
+#: urpm/sources/flatpak.py
+msgid "Can run commands outside its sandbox"
+msgstr "Peut lancer des commandes hors de son bac à sable"
+
+#: urpm/sources/flatpak.py
+msgid "Your saved passwords (keyring)"
+msgstr "Vos mots de passe enregistrés (trousseau)"
+
+#: urpm/sources/flatpak.py
+#, python-brace-format
+msgid "{what} (read-only)"
+msgstr "{what} (lecture seule)"
+
+#: urpm/sources/flatpak.py
+msgid "Every file on your computer"
+msgstr "Tous les fichiers de votre ordinateur"
+
+#: urpm/sources/flatpak.py
+msgid "Your system's programs and libraries"
+msgstr "Les programmes et bibliothèques de votre système"
+
+#: urpm/sources/flatpak.py
+msgid "Your system settings (/etc)"
+msgstr "Les réglages de votre système (/etc)"
+
+#: urpm/sources/flatpak.py
+msgid "Your whole home folder"
+msgstr "Tout votre dossier personnel"
+
+#: urpm/sources/flatpak.py
+msgid "Shows its own windows"
+msgstr "Affiche ses propres fenêtres"
+
+#: urpm/sources/flatpak.py
+msgid "Can inspect other programs (debugging)"
+msgstr "Peut inspecter d'autres programmes (débogage)"
+
+#: urpm/sources/flatpak.py
+msgid "Unused Flatpak runtimes"
+msgstr "Environnements d'exécution Flatpak inutilisés"
+
+#: urpm/sources/flatpak.py
+msgid "Shared platforms that none of your Flatpak apps use any more, usually older versions left behind after app updates."
+msgstr "Plateformes partagées qu'aucune de vos applications Flatpak n'utilise plus, souvent d'anciennes versions laissées après des mises à jour."
+
+#: urpm/sources/flatpak.py
+msgid "Data from uninstalled Flatpak apps"
+msgstr "Données d'applications Flatpak désinstallées"
+
+#: urpm/sources/flatpak.py
+msgid "Settings and files that apps you've uninstalled left in ~/.var/app. They'll be moved to the Trash, so you can still get them back."
+msgstr "Réglages et fichiers laissés dans ~/.var/app par des applications que vous avez désinstallées. Ils seront déplacés dans la corbeille, vous pourrez donc encore les récupérer."
+
+#: urpm/sources/pacman.py
+msgid "Orphaned packages"
+msgstr "Paquets orphelins"
+
+#: urpm/sources/pacman.py
+msgid "Dependencies that nothing installed needs any more."
+msgstr "Dépendances dont plus rien d'installé n'a besoin."
+
+#: urpm/sources/pacman.py
+msgid "Old cached pacman packages"
+msgstr "Anciens paquets pacman en cache"
+
+#: urpm/sources/pacman.py
+msgid "Older versions pacman kept after updates. The newest copy of each is kept, so you can still reinstall without downloading."
+msgstr "Anciennes versions conservées par pacman après les mises à jour. La copie la plus récente de chacune est gardée, vous pouvez donc toujours réinstaller sans télécharger."
+
+#: urpm/sources/rpm.py
+msgid "Unused packages"
+msgstr "Paquets inutilisés"
+
+#: urpm/sources/rpm.py
+msgid "DNF download cache"
+msgstr "Cache de téléchargement de DNF"
+
+#: urpm/sources/rpm.py
+msgid "Downloaded packages and repository data. DNF fetches fresh copies when it needs them."
+msgstr "Paquets téléchargés et données des dépôts. DNF récupère des copies neuves quand il en a besoin."
+
+#: urpm/sources/snap.py
+msgid "Old Snap versions"
+msgstr "Anciennes versions Snap"
+
+#: urpm/sources/snap.py
+msgid "Snap keeps the previous version of every app so it can roll back. These old copies aren't running and can go."
+msgstr "Snap garde la version précédente de chaque application pour pouvoir revenir en arrière. Ces anciennes copies ne tournent pas et peuvent partir."
+
+#: urpm/ui/app.py
+msgid "A cute little window into every package on your Linux machine."
+msgstr "Une jolie petite fenêtre sur tous les paquets de votre machine Linux."
+
+#: urpm/ui/app.py
+msgid "URPM removed from your app menu."
+msgstr "URPM a été retiré de votre menu des applications."
+
+#: urpm/ui/app.py
+#, python-brace-format
+msgid "✨ Added URPM to your app menu ({path})"
+msgstr "✨ URPM a été ajouté à votre menu des applications ({path})"
+
+#: urpm/ui/cleanup_page.py
+msgid "Unused packages, old versions and download caches"
+msgstr "Paquets inutilisés, anciennes versions et caches de téléchargement"
+
+#: urpm/ui/cleanup_page.py
+msgid "Scan again"
+msgstr "Analyser à nouveau"
+
+#: urpm/ui/cleanup_page.py
+#, python-brace-format
+msgid "You can free up {size}"
+msgstr "Vous pouvez libérer {size}"
+
+#: urpm/ui/cleanup_page.py
+msgid "Some things can be cleaned up"
+msgstr "Certaines choses peuvent être nettoyées"
+
+#: urpm/ui/cleanup_page.py
+#, python-brace-format
+msgid "{n} thing found · checked at {time}. Nothing is removed until you review it."
+msgid_plural "{n} things found · checked at {time}. Nothing is removed until you review it."
+msgstr[0] "{n} élément trouvé · vérifié à {time}. Rien n'est supprimé avant que vous ne l'ayez examiné."
+msgstr[1] "{n} éléments trouvés · vérifiés à {time}. Rien n'est supprimé avant que vous ne les ayez examinés."
+
+#: urpm/ui/cleanup_page.py
+msgid "🎉 Nothing to clean up"
+msgstr "🎉 Rien à nettoyer"
+
+#: urpm/ui/cleanup_page.py
+#, python-brace-format
+msgid "Your system is tidy · checked at {time}"
+msgstr "Votre système est bien rangé · vérifié à {time}"
+
+#: urpm/ui/cleanup_page.py
+#, python-brace-format
+msgid "Couldn't check: {errors}"
+msgstr "Vérification impossible : {errors}"
+
+#: urpm/ui/cleanup_page.py
+#, python-brace-format
+msgid "{n} folder"
+msgid_plural "{n} folders"
+msgstr[0] "{n} dossier"
+msgstr[1] "{n} dossiers"
+
+#: urpm/ui/cleanup_page.py
+#, python-brace-format
+msgid "{n} location"
+msgid_plural "{n} locations"
+msgstr[0] "{n} emplacement"
+msgstr[1] "{n} emplacements"
+
+#: urpm/ui/cleanup_page.py
+msgid "Review…"
+msgstr "Examiner…"
+
+#: urpm/ui/details.py
+msgid "Pick a package"
+msgstr "Choisissez un paquet"
+
+#: urpm/ui/details.py
+msgid "Click any row to see its story"
+msgstr "Cliquez sur une ligne pour découvrir son histoire"
+
+#: urpm/ui/details.py
+msgid "🚀 Open"
+msgstr "🚀 Ouvrir"
+
+#: urpm/ui/details.py
+msgid "✨ Update"
+msgstr "✨ Mettre à jour"
+
+#: urpm/ui/details.py
+msgid "🗑️ Remove"
+msgstr "🗑️ Supprimer"
+
+#: urpm/ui/details.py
+msgid "Copy uninstall command"
+msgstr "Copier la commande de désinstallation"
+
+#: urpm/ui/details.py
+msgid "Copy name"
+msgstr "Copier le nom"
+
+#: urpm/ui/details.py
+msgid "📌 Keep this version"
+msgstr "📌 Garder cette version"
+
+#: urpm/ui/details.py
+msgid "ABOUT"
+msgstr "À PROPOS"
+
+#: urpm/ui/details.py
+msgid "MORE"
+msgstr "PLUS"
+
+#: urpm/ui/details.py
+msgid "NEEDED BY"
+msgstr "REQUIS PAR"
+
+#: urpm/ui/details.py
+msgid "PERMISSIONS"
+msgstr "PERMISSIONS"
+
+#: urpm/ui/details.py
+msgid "Open folder"
+msgstr "Ouvrir le dossier"
+
+#: urpm/ui/details.py
+msgid "FILES"
+msgstr "FICHIERS"
+
+#: urpm/ui/details.py
+msgid "Show files"
+msgstr "Afficher les fichiers"
+
+#: urpm/ui/details.py
+msgid "💖 yours"
+msgstr "💖 à vous"
+
+#: urpm/ui/details.py
+msgid "🔗 dependency"
+msgstr "🔗 dépendance"
+
+#: urpm/ui/details.py urpm/ui/table.py
+msgid "📌 held"
+msgstr "📌 bloqué"
+
+#: urpm/ui/details.py
+msgid "🛡 security update"
+msgstr "🛡 mise à jour de sécurité"
+
+#: urpm/ui/details.py
+msgid "✨ update"
+msgstr "✨ mise à jour"
+
+#: urpm/ui/details.py
+msgid "Homepage ↗"
+msgstr "Site web ↗"
+
+#: urpm/ui/details.py
+msgid "Web"
+msgstr "Web"
+
+#: urpm/ui/details.py
+msgid "📌 Allow updates again"
+msgstr "📌 Autoriser à nouveau les mises à jour"
+
+#: urpm/ui/details.py
+#, python-brace-format
+msgid "Couldn't load details: {error}"
+msgstr "Impossible de charger les détails : {error}"
+
+#: urpm/ui/details.py
+msgid "No description provided."
+msgstr "Aucune description fournie."
+
+#: urpm/ui/details.py
+#, python-brace-format
+msgid "⚠️ {n} permission reaches outside the sandbox."
+msgid_plural "⚠️ {n} permissions reach outside the sandbox."
+msgstr[0] "⚠️ {n} permission sort du bac à sable."
+msgstr[1] "⚠️ {n} permissions sortent du bac à sable."
+
+#: urpm/ui/details.py
+msgid "🔒 Nicely sandboxed: nothing reaches outside it."
+msgstr "🔒 Bien isolé : rien ne sort du bac à sable."
+
+#: urpm/ui/details.py
+msgid "🔒 No special permissions."
+msgstr "🔒 Aucune permission particulière."
+
+#: urpm/ui/details.py
+msgid "You can change these with Flatseal or `flatpak override`."
+msgstr "Vous pouvez les modifier avec Flatseal ou `flatpak override`."
+
+#: urpm/ui/details.py
+#, python-brace-format
+msgid "📁 Keeps {size} of your data in {folder}"
+msgstr "📁 Conserve {size} de vos données dans {folder}"
+
+#: urpm/ui/details.py
+msgid "Loading files…"
+msgstr "Chargement des fichiers…"
+
+#: urpm/ui/details.py
+#, python-brace-format
+msgid "Couldn't list files: {error}"
+msgstr "Impossible de lister les fichiers : {error}"
+
+#: urpm/ui/details.py
+msgid "This source doesn't track files"
+msgstr "Cette source ne suit pas les fichiers"
+
+#: urpm/ui/details.py
+#, python-brace-format
+msgid "{n} file"
+msgid_plural "{n} files"
+msgstr[0] "{n} fichier"
+msgstr[1] "{n} fichiers"
+
+#: urpm/ui/details.py
+msgid "Nothing else installed needs this."
+msgstr "Aucun autre paquet installé n'en a besoin."
+
+#: urpm/ui/details.py
+msgid "Nothing installed needs this any more, so it can probably be removed (see Cleanup)."
+msgstr "Plus rien d'installé n'en a besoin, il peut donc sans doute être supprimé (voir Nettoyage)."
+
+#: urpm/ui/details.py urpm/ui/dialogs.py
+#, python-brace-format
+msgid "… and {n} more"
+msgstr "… et {n} de plus"
+
+#: urpm/ui/details.py
+#, python-brace-format
+msgid "{n} installed package: {names}"
+msgid_plural "{n} installed packages: {names}"
+msgstr[0] "{n} paquet installé : {names}"
+msgstr[1] "{n} paquets installés : {names}"
+
+#: urpm/ui/dialogs.py
+#, python-brace-format
+msgid "Remove {name}?"
+msgstr "Supprimer {name} ?"
+
+#: urpm/ui/dialogs.py
+msgid "URPM will run:"
+msgstr "URPM va lancer :"
+
+#: urpm/ui/dialogs.py urpm/ui/move.py
+msgid "🔒 You'll be asked for your password."
+msgstr "🔒 Votre mot de passe vous sera demandé."
+
+#: urpm/ui/dialogs.py urpm/ui/move.py
+msgid "Cancel"
+msgstr "Annuler"
+
+#: urpm/ui/dialogs.py
+msgid "Remove"
+msgstr "Supprimer"
+
+#: urpm/ui/dialogs.py
+msgid "Checking what else would be removed…"
+msgstr "Vérification de ce qui serait aussi supprimé…"
+
+#: urpm/ui/dialogs.py
+#, python-brace-format
+msgid "⚠️ The package manager says: {error}"
+msgstr "⚠️ Le gestionnaire de paquets indique : {error}"
+
+#: urpm/ui/dialogs.py
+msgid "ℹ️ URPM can't preview what else this package manager will remove. Packages that depend on this one may be removed too."
+msgstr "ℹ️ URPM ne peut pas prévoir ce que ce gestionnaire de paquets supprimera d'autre. Les paquets qui dépendent de celui-ci pourraient aussi être supprimés."
+
+#: urpm/ui/dialogs.py
+#, python-brace-format
+msgid "⚠️ This will also remove {n} other package:"
+msgid_plural "⚠️ This will also remove {n} other packages:"
+msgstr[0] "⚠️ Cela supprimera aussi {n} autre paquet :"
+msgstr[1] "⚠️ Cela supprimera aussi {n} autres paquets :"
+
+#: urpm/ui/dialogs.py
+#, python-brace-format
+msgid "Remove {n} package"
+msgid_plural "Remove {n} packages"
+msgstr[0] "Supprimer {n} paquet"
+msgstr[1] "Supprimer {n} paquets"
+
+#: urpm/ui/dialogs.py
+#, python-brace-format
+msgid "Open {name}?"
+msgstr "Ouvrir {name} ?"
+
+#: urpm/ui/dialogs.py
+msgid "File:"
+msgstr "Fichier :"
+
+#: urpm/ui/dialogs.py
+msgid "Only open files you downloaded on purpose, from a source you trust."
+msgstr "N'ouvrez que des fichiers téléchargés volontairement, depuis une source de confiance."
+
+#: urpm/ui/dialogs.py
+msgid "Open anyway"
+msgstr "Ouvrir quand même"
+
+#: urpm/ui/dialogs.py
+#, python-brace-format
+msgid "Frees {size}"
+msgstr "Libère {size}"
+
+#: urpm/ui/dialogs.py
+msgid "These packages will be removed:"
+msgstr "Ces paquets seront supprimés :"
+
+#: urpm/ui/dialogs.py
+msgid "These folders will be moved to the Trash:"
+msgstr "Ces dossiers seront déplacés dans la corbeille :"
+
+#: urpm/ui/dialogs.py
+msgid "These will be emptied:"
+msgstr "Ceux-ci seront vidés :"
+
+#: urpm/ui/dialogs.py
+#, python-brace-format
+msgid "Free up {size}"
+msgstr "Libérer {size}"
+
+#: urpm/ui/dialogs.py
+msgid "Clean up"
+msgstr "Nettoyer"
+
+#: urpm/ui/dialogs.py urpm/ui/move.py
+msgid "Close"
+msgstr "Fermer"
+
+#: urpm/ui/dialogs.py
+msgid "Stopping…"
+msgstr "Arrêt en cours…"
+
+#: urpm/ui/dialogs.py
+msgid "⏳ This step runs as administrator and will finish on its own. URPM will skip anything after it."
+msgstr "⏳ Cette étape s'exécute en tant qu'administrateur et se terminera d'elle-même. URPM ignorera tout ce qui suit."
+
+#: urpm/ui/dialogs.py
+msgid "✅ All done!"
+msgstr "✅ Terminé !"
+
+#: urpm/ui/dialogs.py
+msgid "🔒 Password prompt was cancelled"
+msgstr "🔒 La demande de mot de passe a été annulée"
+
+#: urpm/ui/dialogs.py
+msgid "🔒 Not authorized"
+msgstr "🔒 Non autorisé"
+
+#: urpm/ui/dialogs.py
+msgid "✋ Cancelled"
+msgstr "✋ Annulé"
+
+#: urpm/ui/dialogs.py
+#, python-brace-format
+msgid "😿 Something went wrong (exit code {code})"
+msgstr "😿 Un problème est survenu (code de sortie {code})"
+
+#: urpm/ui/dialogs.py
+msgid "pkexec (polkit) isn't installed, so URPM can't ask for your password"
+msgstr "pkexec (polkit) n'est pas installé, URPM ne peut donc pas demander votre mot de passe"
+
+#: urpm/ui/dialogs.py
+#, python-brace-format
+msgid "{program} isn't installed"
+msgstr "{program} n'est pas installé"
+
+#: urpm/ui/dialogs.py
+msgid "Export package list"
+msgstr "Exporter la liste des paquets"
+
+#: urpm/ui/duplicates_page.py
+msgid "🎉 No duplicates"
+msgstr "🎉 Aucun doublon"
+
+#: urpm/ui/duplicates_page.py
+msgid "Every app is installed only once."
+msgstr "Chaque application n'est installée qu'une fois."
+
+#: urpm/ui/duplicates_page.py
+#, python-brace-format
+msgid "{n} app is installed more than once"
+msgid_plural "{n} apps are installed more than once"
+msgstr[0] "{n} application est installée plusieurs fois"
+msgstr[1] "{n} applications sont installées plusieurs fois"
+
+#: urpm/ui/duplicates_page.py
+#, python-brace-format
+msgid "Keeping just one copy of each could free {size}. Pick the copy you don't use and remove it."
+msgstr "Ne garder qu'une copie de chacune pourrait libérer {size}. Choisissez la copie que vous n'utilisez pas et supprimez-la."
+
+#: urpm/ui/duplicates_page.py
+msgid "Pick the copy you don't use and remove it."
+msgstr "Choisissez la copie que vous n'utilisez pas et supprimez-la."
+
+#: urpm/ui/duplicates_page.py
+#, python-brace-format
+msgid "updated {date}"
+msgstr "mise à jour le {date}"
+
+#: urpm/ui/duplicates_page.py
+msgid "Remove this copy"
+msgstr "Supprimer cette copie"
+
+#: urpm/ui/history_page.py
+msgid "All"
+msgstr "Tout"
+
+#: urpm/ui/history_page.py
+msgid "Today"
+msgstr "Aujourd'hui"
+
+#: urpm/ui/history_page.py
+msgid "Yesterday"
+msgstr "Hier"
+
+#: urpm/ui/history_page.py
+msgid "%A, %b %d, %Y"
+msgstr "%A %d %b %Y"
+
+#: urpm/ui/history_page.py
+msgid "Reading your package history…"
+msgstr "Lecture de l'historique de vos paquets…"
+
+#: urpm/ui/history_page.py
+msgid "From your package managers' own logs"
+msgstr "D'après les journaux de vos gestionnaires de paquets"
+
+#: urpm/ui/history_page.py
+msgid "Show more"
+msgstr "Afficher plus"
+
+#: urpm/ui/history_page.py
+msgid "No history found"
+msgstr "Aucun historique trouvé"
+
+#: urpm/ui/history_page.py
+msgid "Your package managers haven't logged any changes yet, or their logs aren't readable."
+msgstr "Vos gestionnaires de paquets n'ont encore enregistré aucun changement, ou leurs journaux ne sont pas lisibles."
+
+#: urpm/ui/history_page.py
+#, python-brace-format
+msgid "{n} change"
+msgid_plural "{n} changes"
+msgstr[0] "{n} changement"
+msgstr[1] "{n} changements"
+
+#: urpm/ui/history_page.py
+#, python-brace-format
+msgid "{n} in the last 30 days · from your package managers' own logs"
+msgstr "{n} ces 30 derniers jours · d'après les journaux de vos gestionnaires de paquets"
+
+#: urpm/ui/history_page.py
+msgid "Nothing matches these filters."
+msgstr "Rien ne correspond à ces filtres."
+
+#: urpm/ui/history_page.py
+#, python-brace-format
+msgid "Show more ({n} left)"
+msgstr "Afficher plus ({n} restants)"
+
+#: urpm/ui/move.py
+msgid "Move to a new computer"
+msgstr "Passer à un nouvel ordinateur"
+
+#: urpm/ui/move.py
+msgid "Save a list of your apps here, then open it with URPM on your new computer to install them all again."
+msgstr "Enregistrez ici la liste de vos applications, puis ouvrez-la avec URPM sur votre nouvel ordinateur pour toutes les réinstaller."
+
+#: urpm/ui/move.py
+#, python-brace-format
+msgid "💖 {n} app you installed"
+msgid_plural "💖 {n} apps you installed"
+msgstr[0] "💖 {n} application installée par vous"
+msgstr[1] "💖 {n} applications installées par vous"
+
+#: urpm/ui/move.py
+msgid "You also get a script that installs them on computers without URPM."
+msgstr "Vous obtenez aussi un script qui les installe sur les ordinateurs sans URPM."
+
+#: urpm/ui/move.py
+msgid "💾 Save my apps…"
+msgstr "💾 Enregistrer mes applications…"
+
+#: urpm/ui/move.py
+msgid "📂 Install apps from another computer"
+msgstr "📂 Installer les applications d'un autre ordinateur"
+
+#: urpm/ui/move.py
+msgid "Open a list you saved with URPM. You'll see what's missing here before anything is installed."
+msgstr "Ouvrez une liste enregistrée avec URPM. Vous verrez ce qui manque ici avant toute installation."
+
+#: urpm/ui/move.py
+msgid "Open a saved list…"
+msgstr "Ouvrir une liste enregistrée…"
+
+#: urpm/ui/move.py
+msgid "Save my apps"
+msgstr "Enregistrer mes applications"
+
+#: urpm/ui/move.py urpm/ui/window.py
+#, python-brace-format
+msgid "😿 Couldn't save: {error}"
+msgstr "😿 Enregistrement impossible : {error}"
+
+#: urpm/ui/move.py
+#, python-brace-format
+msgid "💾 Saved {list} and {script}. Copy both to your new computer."
+msgstr "💾 {list} et {script} enregistrés. Copiez les deux sur votre nouvel ordinateur."
+
+#: urpm/ui/move.py
+msgid "Open a saved list"
+msgstr "Ouvrir une liste enregistrée"
+
+#: urpm/ui/move.py
+msgid "Checking what's missing on this computer…"
+msgstr "Recherche de ce qui manque sur cet ordinateur…"
+
+#: urpm/ui/move.py
+#, python-brace-format
+msgid "Install apps from {file}"
+msgstr "Installer les applications de {file}"
+
+#: urpm/ui/move.py
+#, python-brace-format
+msgid "{n} app"
+msgid_plural "{n} apps"
+msgstr[0] "{n} application"
+msgstr[1] "{n} applications"
+
+#: urpm/ui/move.py
+#, python-brace-format
+msgid "{n} already here"
+msgid_plural "{n} already here"
+msgstr[0] "{n} déjà là"
+msgstr[1] "{n} déjà là"
+
+#: urpm/ui/move.py
+#, python-brace-format
+msgid "Saved on {system}"
+msgstr "Enregistrée sur {system}"
+
+#: urpm/ui/move.py
+#, python-brace-format
+msgid "{emoji} {source}: {n} app to install"
+msgid_plural "{emoji} {source}: {n} apps to install"
+msgstr[0] "{emoji} {source} : {n} application à installer"
+msgstr[1] "{emoji} {source} : {n} applications à installer"
+
+#: urpm/ui/move.py
+#, python-brace-format
+msgid "⚠️ Not found in this computer's {source} sources. They probably came from an extra repository that has to be added first:"
+msgstr "⚠️ Introuvables dans les sources {source} de cet ordinateur. Elles viennent sans doute d'un dépôt supplémentaire qu'il faut d'abord ajouter :"
+
+#: urpm/ui/move.py
+#, python-brace-format
+msgid "{source} isn't on this computer, so these are skipped:"
+msgstr "{source} n'est pas présent sur cet ordinateur, celles-ci sont donc ignorées :"
+
+#: urpm/ui/move.py
+#, python-brace-format
+msgid "Install these {source} apps yourself:"
+msgstr "Installez vous-même ces applications {source} :"
+
+#: urpm/ui/move.py
+msgid "Everything URPM can install from this list is already here."
+msgstr "Tout ce qu'URPM peut installer depuis cette liste est déjà là."
+
+#: urpm/ui/move.py
+msgid "Install"
+msgstr "Installer"
+
+#: urpm/ui/move.py
+#, python-brace-format
+msgid "Install {n} app"
+msgid_plural "Install {n} apps"
+msgstr[0] "Installer {n} application"
+msgstr[1] "Installer {n} applications"
+
+#: urpm/ui/settings.py
+msgid "Settings"
+msgstr "Paramètres"
+
+#: urpm/ui/settings.py
+msgid "APPEARANCE"
+msgstr "APPARENCE"
+
+#: urpm/ui/settings.py
+msgid "Theme"
+msgstr "Thème"
+
+#: urpm/ui/settings.py
+msgid "Pick how URPM looks. Your choice is saved."
+msgstr "Choisissez l'apparence d'URPM. Votre choix est enregistré."
+
+#: urpm/ui/settings.py
+msgid "Done"
+msgstr "Terminé"
+
+#: urpm/ui/settings.py
+msgid "LANGUAGE"
+msgstr "LANGUE"
+
+#: urpm/ui/settings.py
+msgid "Language"
+msgstr "Langue"
+
+#: urpm/ui/settings.py
+msgid "Used the next time URPM starts."
+msgstr "Appliquée au prochain démarrage d'URPM."
+
+#: urpm/ui/settings.py
+#, python-brace-format
+msgid "System ({language})"
+msgstr "Système ({language})"
+
+#: urpm/ui/settings.py
+msgid "✅ Saved. Restart URPM to use it."
+msgstr "✅ Enregistré. Redémarrez URPM pour l'appliquer."
+
+#: urpm/ui/settings.py
+msgid "UPDATES"
+msgstr "MISES À JOUR"
+
+#: urpm/ui/settings.py
+msgid "Check for updates in the background"
+msgstr "Rechercher les mises à jour en arrière-plan"
+
+#: urpm/ui/settings.py
+msgid "Every 6 hours, a quick check that shows a notification when new updates appear. URPM itself doesn't stay open."
+msgstr "Toutes les 6 heures, une vérification rapide affiche une notification quand de nouvelles mises à jour apparaissent. URPM lui-même ne reste pas ouvert."
+
+#: urpm/ui/settings.py
+#, python-brace-format
+msgid "😿 Couldn't change it: {error}"
+msgstr "😿 Modification impossible : {error}"
+
+#: urpm/ui/settings.py
+msgid "✅ On: checks 15 minutes after you log in, then every 6 hours."
+msgstr "✅ Activé : vérifie 15 minutes après votre connexion, puis toutes les 6 heures."
+
+#: urpm/ui/settings.py
+msgid "✅ On: checks 10 minutes after you log in."
+msgstr "✅ Activé : vérifie 10 minutes après votre connexion."
+
+#: urpm/ui/settings.py
+msgid "Background checks are off."
+msgstr "Les vérifications en arrière-plan sont désactivées."
+
+#: urpm/ui/settings.py
+#, python-brace-format
+msgid "Use the {name} theme"
+msgstr "Utiliser le thème {name}"
+
+#: urpm/ui/settings.py
+#, python-brace-format
+msgid "{name} theme"
+msgstr "Thème {name}"
+
+#: urpm/ui/sidebar.py
+msgid "Just mine 💖"
+msgstr "Juste les miens 💖"
+
+#: urpm/ui/sidebar.py
+msgid "Hide packages that only came along as dependencies"
+msgstr "Masquer les paquets arrivés seulement comme dépendances"
+
+#: urpm/ui/sidebar.py
+msgid "LIBRARY"
+msgstr "BIBLIOTHÈQUE"
+
+#: urpm/ui/sidebar.py
+msgid "Everything"
+msgstr "Tout"
+
+#: urpm/ui/sidebar.py
+msgid "Updates"
+msgstr "Mises à jour"
+
+#: urpm/ui/sidebar.py
+#, python-brace-format
+msgid "Last {n} day"
+msgid_plural "Last {n} days"
+msgstr[0] "Dernier jour"
+msgstr[1] "{n} derniers jours"
+
+#: urpm/ui/sidebar.py
+msgid "TOOLS"
+msgstr "OUTILS"
+
+#: urpm/ui/sidebar.py
+msgid "Cleanup"
+msgstr "Nettoyage"
+
+#: urpm/ui/sidebar.py
+msgid "Duplicates"
+msgstr "Doublons"
+
+#: urpm/ui/sidebar.py
+msgid "History"
+msgstr "Historique"
+
+#: urpm/ui/sidebar.py
+#, python-brace-format
+msgid "Couldn't read {name}: {error}"
+msgstr "Impossible de lire {name} : {error}"
+
+#: urpm/ui/table.py
+msgid "Package"
+msgstr "Paquet"
+
+#: urpm/ui/table.py
+msgid "Version"
+msgstr "Version"
+
+#: urpm/ui/table.py
+msgid "Source"
+msgstr "Source"
+
+#: urpm/ui/theme.py
+msgid "Soft pink and pastel. The original look."
+msgstr "Rose doux et pastel. Le look d'origine."
+
+#: urpm/ui/theme.py
+msgid "Dark plum with pink highlights. Easy on the eyes."
+msgstr "Prune foncé avec des touches de rose. Reposant pour les yeux."
+
+#: urpm/ui/theme.py
+msgid "Near-black with bat-signal yellow. For the dark knight."
+msgstr "Presque noir avec le jaune du bat-signal. Pour le chevalier noir."
+
+#: urpm/ui/theme.py
+msgid "Calm sage green on soft white. Clean and minimal."
+msgstr "Vert sauge apaisant sur blanc doux. Net et minimaliste."
+
+#: urpm/ui/theme.py
+msgid "Deep navy with northern-lights teal and violet."
+msgstr "Bleu marine profond avec le turquoise et le violet des aurores boréales."
+
+#: urpm/ui/widgets.py
+msgid "%b %d, %Y"
+msgstr "%d %b %Y"
+
+#: urpm/ui/window.py
+msgid "Search your packages…"
+msgstr "Rechercher dans vos paquets…"
+
+#: urpm/ui/window.py
+msgid "Check for updates"
+msgstr "Rechercher des mises à jour"
+
+#: urpm/ui/window.py
+msgid "Export list…"
+msgstr "Exporter la liste…"
+
+#: urpm/ui/window.py
+msgid "Move to a new computer…"
+msgstr "Passer à un nouvel ordinateur…"
+
+#: urpm/ui/window.py
+msgid "Settings…"
+msgstr "Paramètres…"
+
+#: urpm/ui/window.py
+msgid "Keyboard shortcuts"
+msgstr "Raccourcis clavier"
+
+#: urpm/ui/window.py
+msgid "About URPM"
+msgstr "À propos d'URPM"
+
+#: urpm/ui/window.py
+msgid "Quit"
+msgstr "Quitter"
+
+#: urpm/ui/window.py
+msgid "Menu"
+msgstr "Menu"
+
+#: urpm/ui/window.py
+msgid "Main menu"
+msgstr "Menu principal"
+
+#: urpm/ui/window.py
+msgid "Themes (Ctrl+,)"
+msgstr "Thèmes (Ctrl+,)"
+
+#: urpm/ui/window.py
+msgid "Settings and themes"
+msgstr "Paramètres et thèmes"
+
+#: urpm/ui/window.py
+msgid "Reload packages (Ctrl+R)"
+msgstr "Recharger les paquets (Ctrl+R)"
+
+#: urpm/ui/window.py
+msgid "Reload packages"
+msgstr "Recharger les paquets"
+
+#: urpm/ui/window.py
+msgid "packages"
+msgstr "paquets"
+
+#: urpm/ui/window.py
+msgid "on disk"
+msgstr "sur le disque"
+
+#: urpm/ui/window.py
+msgid "installed by you"
+msgstr "installés par vous"
+
+#: urpm/ui/window.py
+msgid "updates available"
+msgstr "mises à jour disponibles"
+
+#: urpm/ui/window.py
+msgid "✨ Update all"
+msgstr "✨ Tout mettre à jour"
+
+#: urpm/ui/window.py
+msgid "Counting your packages…"
+msgstr "Comptage de vos paquets…"
+
+#: urpm/ui/window.py
+msgid "peeking into every box on your shelf"
+msgstr "petit coup d'œil dans chaque boîte de votre étagère"
+
+#: urpm/ui/window.py
+msgid "Nothing here!"
+msgstr "Rien ici !"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "😿 Couldn't read {errors}"
+msgstr "😿 Impossible de lire {errors}"
+
+#: urpm/ui/window.py
+msgid "No package managers found on this system"
+msgstr "Aucun gestionnaire de paquets trouvé sur ce système"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "{name} isn't installed any more"
+msgstr "{name} n'est plus installé"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "Cleaning up: {what}…"
+msgstr "Nettoyage : {what}…"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "🧹 Cleaned up, {size} freed"
+msgstr "🧹 Nettoyé, {size} libérés"
+
+#: urpm/ui/window.py
+msgid "🧹 Cleaned up"
+msgstr "🧹 Nettoyé"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "😿 Couldn't check updates for {errors}"
+msgstr "😿 Impossible de vérifier les mises à jour de {errors}"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "✨ {n} update available"
+msgid_plural "✨ {n} updates available"
+msgstr[0] "✨ {n} mise à jour disponible"
+msgstr[1] "✨ {n} mises à jour disponibles"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "✨ {n} update ready from {sources}"
+msgid_plural "✨ {n} updates ready from {sources}"
+msgstr[0] "✨ {n} mise à jour prête ({sources})"
+msgstr[1] "✨ {n} mises à jour prêtes ({sources})"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "🛡 {n} security"
+msgstr "🛡 {n} de sécurité"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "updates · 🛡 {n}"
+msgstr "mises à jour · 🛡 {n}"
+
+#: urpm/ui/window.py
+msgid "No packages found"
+msgstr "Aucun paquet trouvé"
+
+#: urpm/ui/window.py
+msgid "URPM didn't find any package manager"
+msgstr "URPM n'a trouvé aucun gestionnaire de paquets"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "Showing {shown} of {total} packages"
+msgstr "{shown} paquets affichés sur {total}"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "still loading {names}…"
+msgstr "chargement de {names} en cours…"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "updates checked at {time}"
+msgstr "mises à jour vérifiées à {time}"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "No packages match “{query}”"
+msgstr "Aucun paquet ne correspond à « {query} »"
+
+#: urpm/ui/window.py
+msgid "Still checking…"
+msgstr "Vérification en cours…"
+
+#: urpm/ui/window.py
+msgid "Everything is up to date"
+msgstr "Tout est à jour"
+
+#: urpm/ui/window.py
+msgid "All fresh!"
+msgstr "Tout est frais !"
+
+#: urpm/ui/window.py
+msgid "No packages in this view"
+msgstr "Aucun paquet dans cette vue"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "😿 {problem}. The command was copied, so you can run it in a terminal."
+msgstr "😿 {problem}. La commande a été copiée, vous pouvez la lancer dans un terminal."
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "Removing {name}…"
+msgstr "Suppression de {name}…"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "👋 Removed {name}"
+msgstr "👋 {name} supprimé"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "Allowing updates for {name}…"
+msgstr "Autorisation des mises à jour pour {name}…"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "📌 {name} will be updated again"
+msgstr "📌 {name} sera de nouveau mis à jour"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "Keeping {name} at {version}…"
+msgstr "Maintien de {name} en version {version}…"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "📌 {name} stays at {version}"
+msgstr "📌 {name} reste en version {version}"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "Updating {name}…"
+msgstr "Mise à jour de {name}…"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "✨ Updated {name}"
+msgstr "✨ {name} mis à jour"
+
+#: urpm/ui/window.py
+msgid "Nothing to update here"
+msgstr "Rien à mettre à jour ici"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "Updating {n} package…"
+msgid_plural "Updating {n} packages…"
+msgstr[0] "Mise à jour de {n} paquet…"
+msgstr[1] "Mise à jour de {n} paquets…"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "✨ Updated {n} package"
+msgid_plural "✨ Updated {n} packages"
+msgstr[0] "✨ {n} paquet mis à jour"
+msgstr[1] "✨ {n} paquets mis à jour"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "{name} isn't an app you can open"
+msgstr "{name} n'est pas une application que l'on peut ouvrir"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "🚀 Opening {name}…"
+msgstr "🚀 Ouverture de {name}…"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "😿 Couldn't open {name}: {error}"
+msgstr "😿 Impossible d'ouvrir {name} : {error}"
+
+#: urpm/ui/window.py
+msgid "Nothing to export in this view"
+msgstr "Rien à exporter dans cette vue"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "💾 Exported {n} package"
+msgid_plural "💾 Exported {n} packages"
+msgstr[0] "💾 {n} paquet exporté"
+msgstr[1] "💾 {n} paquets exportés"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "Installing {n} app…"
+msgid_plural "Installing {n} apps…"
+msgstr[0] "Installation de {n} application…"
+msgstr[1] "Installation de {n} applications…"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "📦 Installed {n} app"
+msgid_plural "📦 Installed {n} apps"
+msgstr[0] "📦 {n} application installée"
+msgstr[1] "📦 {n} applications installées"
+
+#: urpm/ui/window.py
+msgid "Type anywhere"
+msgstr "Tapez n'importe où"
+
+#: urpm/ui/window.py
+msgid "Search"
+msgstr "Rechercher"
+
+#: urpm/ui/window.py
+msgid "Clear search"
+msgstr "Effacer la recherche"
+
+#: urpm/ui/window.py
+msgid "Focus search"
+msgstr "Aller à la recherche"
+
+#: urpm/ui/window.py
+msgid "Enter / double-click"
+msgstr "Entrée / double-clic"
+
+#: urpm/ui/window.py
+msgid "Open the app"
+msgstr "Ouvrir l'application"
+
+#: urpm/ui/window.py
+msgid "Remove package…"
+msgstr "Supprimer le paquet…"
+
+#: urpm/ui/window.py
+msgid "Export list"
+msgstr "Exporter la liste"
+
+#: urpm/ui/window.py
+msgid "📋 Uninstall command copied"
+msgstr "📋 Commande de désinstallation copiée"
+
+#: urpm/ui/window.py
+msgid "This source has no uninstall command"
+msgstr "Cette source n'a pas de commande de désinstallation"
+
+#: urpm/ui/window.py
+#, python-brace-format
+msgid "📋 Copied “{name}”"
+msgstr "📋 « {name} » copié"

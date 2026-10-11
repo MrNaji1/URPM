@@ -9,6 +9,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, Pango  # noqa: E402
 
+from urpm.i18n import _, ngettext  # noqa: E402
 from urpm.sources import Cleanup, human_size  # noqa: E402
 from urpm.ui.widgets import clear, label  # noqa: E402
 
@@ -26,15 +27,15 @@ class CleanupPage(Gtk.ScrolledWindow):
         header.append(label("🧹", "big-emoji"))
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER,
                          hexpand=True)
-        self.title = label("Looking for things to clean up…", "tool-title", xalign=0, wrap=True)
-        self.subtitle = label("Unused packages, old versions and download caches", "dim",
+        self.title = label(_("Looking for things to clean up…"), "tool-title", xalign=0, wrap=True)
+        self.subtitle = label(_("Unused packages, old versions and download caches"), "dim",
                               xalign=0, wrap=True)
         titles.append(self.title)
         titles.append(self.subtitle)
         header.append(titles)
         self.spinner = Gtk.Spinner(valign=Gtk.Align.CENTER)
         header.append(self.spinner)
-        self.rescan_button = Gtk.Button(label="Scan again", css_classes=["soft"],
+        self.rescan_button = Gtk.Button(label=_("Scan again"), css_classes=["soft"],
                                         valign=Gtk.Align.CENTER)
         self.rescan_button.connect("clicked", lambda _b: on_rescan())
         header.append(self.rescan_button)
@@ -51,7 +52,7 @@ class CleanupPage(Gtk.ScrolledWindow):
         self.spinner.start()
         self.rescan_button.set_sensitive(False)
         if not self.cleanups:
-            self.title.set_label("Looking for things to clean up…")
+            self.title.set_label(_("Looking for things to clean up…"))
 
     def show_results(self, cleanups: list[Cleanup], errors: list[str]) -> None:
         self.cleanups = cleanups
@@ -61,18 +62,21 @@ class CleanupPage(Gtk.ScrolledWindow):
         total = sum(c.size for c in cleanups)
         checked = time.strftime("%H:%M")
         if cleanups:
-            self.title.set_label(f"You can free up {human_size(total)}" if total
-                                 else "Some things can be cleaned up")
-            self.subtitle.set_label(f"{len(cleanups)} thing{'s' if len(cleanups) != 1 else ''} "
-                                    f"found · checked at {checked}. Nothing is removed until "
-                                    "you review it.")
+            self.title.set_label(_("You can free up {size}").format(size=human_size(total))
+                                 if total else _("Some things can be cleaned up"))
+            self.subtitle.set_label(ngettext(
+                "{n} thing found · checked at {time}. Nothing is removed until you review it.",
+                "{n} things found · checked at {time}. Nothing is removed until you review it.",
+                len(cleanups)).format(n=len(cleanups), time=checked))
         else:
-            self.title.set_label("🎉 Nothing to clean up")
-            self.subtitle.set_label(f"Your system is tidy · checked at {checked}")
+            self.title.set_label(_("🎉 Nothing to clean up"))
+            self.subtitle.set_label(_("Your system is tidy · checked at {time}").format(
+                time=checked))
         clear(self.cards)
         for item in cleanups:
             self.cards.append(self._card(item))
-        self.errors.set_label("Couldn't check: " + "; ".join(errors) if errors else "")
+        self.errors.set_label(_("Couldn't check: {errors}").format(errors="; ".join(errors))
+                              if errors else "")
         self.errors.set_visible(bool(errors))
 
     def _card(self, item: Cleanup) -> Gtk.Widget:
@@ -86,13 +90,17 @@ class CleanupPage(Gtk.ScrolledWindow):
         text.append(label(item.description, "dim", xalign=0, wrap=True,
                           wrap_mode=Pango.WrapMode.WORD_CHAR))
         count = len(item.items)
-        what = {"packages": "package", "data": "folder"}.get(item.kind, "location")
-        text.append(label(f"{count} {what}{'s' if count != 1 else ''}", "small", "dim",
-                          xalign=0))
+        if item.kind == "packages":
+            what = ngettext("{n} package", "{n} packages", count)
+        elif item.kind == "data":
+            what = ngettext("{n} folder", "{n} folders", count)
+        else:
+            what = ngettext("{n} location", "{n} locations", count)
+        text.append(label(what.format(n=count), "small", "dim", xalign=0))
         card.append(text)
         side = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, valign=Gtk.Align.CENTER)
         side.append(label(human_size(item.size) if item.size else "—", "tool-size", xalign=1))
-        review = Gtk.Button(label="Review…", css_classes=["cute"])
+        review = Gtk.Button(label=_("Review…"), css_classes=["cute"])
         review.connect("clicked", lambda _b: self._on_review(item))
         side.append(review)
         card.append(side)

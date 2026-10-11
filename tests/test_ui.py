@@ -19,7 +19,7 @@ try:
 except (ImportError, ValueError):
     HAVE_GTK = False
 
-from urpm.sources.base import DEV, Action, Cleanup, Details, Package, Source
+from urpm.sources.base import DEV, Action, Cleanup, Details, Package, Permission, Source
 
 
 class FakeSource(Source):
@@ -74,6 +74,18 @@ class FakeSource(Source):
 
     def required_by(self, pkg):
         return {"beta": ["alpha"], "alpha": [], "gamma": []}.get(pkg.name)
+
+    def install_actions(self, pkgs):
+        return [Action(["true", "install", *(p.name for p in pkgs)], root=True)]
+
+    def permissions(self, pkg):
+        if pkg.name != "alpha":
+            return None
+        return [Permission("🌐", "Internet access"),
+                Permission("🏠", "Your whole home folder", True)]
+
+    def data_folder(self, pkg):
+        return os.path.dirname(os.path.abspath(__file__)) if pkg.name == "alpha" else None
 
     def cleanups(self, packages):
         return [Cleanup("fake-cache", "Fake download cache", "Old downloads.", "Fake", 5000,
@@ -623,6 +635,13 @@ class WindowTests(unittest.TestCase):
             found.extend(self.labels_in(child))
         return found
 
+    def labels_in_text(self, widget) -> str:
+        """All the text in a window or widget, as one string (labels, buttons, checks)."""
+        texts = [w.get_label() for w in self.labels_in(widget.get_child()
+                                                         if isinstance(widget, Gtk.Window)
+                                                         else widget)]
+        return "\n".join(t for t in texts if t)
+
     def test_needed_by_in_details(self):
         names = self.shown_names()
         self.win.packages.selection.set_selected(names.index("beta"))
@@ -795,6 +814,85 @@ class WindowTests(unittest.TestCase):
             window.background_switch.set_active(False)
             spin(lambda: "Couldn't" in window.background_status.get_label())
             self.assertTrue(window.background_switch.get_active())     # put back
+        window.destroy()
+
+    def test_move_to_a_new_computer(self):
+        import json
+        import tempfile
+        self.win._on_move()
+        dialog = self.win.move_dialog
+        self.assertIn("2 apps you installed", self.labels_in_text(dialog))  # alpha, gamma
+        with tempfile.TemporaryDirectory() as tmp:
+            saved = os.path.join(tmp, "my-apps.json")
+            dialog.save_to(saved)
+            self.assertIn("Saved my-apps.json and my-apps.sh", dialog.status.get_label())
+            snap = json.loads(open(saved).read())
+            self.assertEqual([a["name"] for a in snap["apps"]], ["alpha", "gamma"])
+            self.assertTrue(os.access(os.path.join(tmp, "my-apps.sh"), os.X_OK))
+
+            dialog.save_to(os.path.join(tmp, "missing-folder", "x.json"))
+            self.assertIn("Couldn't save", dialog.status.get_label())
+
+            # The list from "another computer" has two apps this one doesn't.
+            snap["apps"] += [{"source": "fake", "name": "delta", "id": "delta"},
+                             {"source": "fake", "name": "epsilon", "id": "epsilon"},
+                             {"source": "snap", "name": "spotify", "id": "spotify"}]
+            with open(saved, "w") as fh:
+                json.dump(snap, fh)
+            with mock.patch("urpm.ui.move.available_sources", return_value=[FakeSource()]):
+                dialog.open_file(saved)
+                spin(lambda: getattr(dialog, "restore_dialog", None) is not None)
+            restore = dialog.restore_dialog
+            text = self.labels_in_text(restore)
+            self.assertIn("2 already here", text)
+            self.assertIn("spotify", text)                      # Snap isn't on this computer
+            self.assertEqual(restore.install_button.get_label(), "Install 2 apps")
+            self.assertTrue(restore.password_note.get_visible())
+            restore.checks["fake"].set_active(False)
+            self.assertFalse(restore.install_button.get_sensitive())
+            restore.checks["fake"].set_active(True)
+            with mock.patch.object(self.win, "_run_action") as run:
+                restore._install()
+            title, actions, done = run.call_args.args
+            self.assertEqual(actions[0].argv, ["true", "install", "delta", "epsilon"])
+            self.assertEqual((title, done), ("Installing 2 apps…", "📦 Installed 2 apps"))
+
+            with open(saved, "w") as fh:
+                fh.write("[]")
+            self.win._on_move()
+            self.win.move_dialog.open_file(saved)
+            self.assertIn("isn't a URPM app list", self.win.move_dialog.status.get_label())
+            self.win.move_dialog.destroy()
+
+    def test_permissions_in_details(self):
+        details = self.win.details
+        self.win.packages.selection.set_selected(self.shown_names().index("alpha"))
+        spin(lambda: details.permissions.get_first_child() is not None)
+        self.assertTrue(details.permissions_heading.get_visible())
+        self.assertIn("1 permission reaches outside", details.permissions_summary.get_label())
+        texts = [w.get_label() for w in self.labels_in(details.permissions)]
+        self.assertIn("🏠  Your whole home folder", texts)
+        self.assertTrue(details.data_row.get_visible())
+        self.assertIn("of your data in", details.data_label.get_label())
+        with mock.patch("urpm.ui.dialogs.launch") as launch:
+            details._open_data_folder()
+        self.assertEqual(launch.call_args.args[0][:2], ["gio", "open"])
+        self.win.packages.selection.set_selected(self.shown_names().index("gamma"))
+        spin(lambda: not details.spinner.get_visible())
+        self.assertFalse(details.permissions_heading.get_visible())
+        self.assertFalse(details.data_row.get_visible())
+
+    def test_language_setting(self):
+        from urpm.ui import theme
+        from urpm.ui.settings import SettingsWindow
+        window = SettingsWindow(self.win, self.win.get_application().theme)
+        codes = window.language_codes
+        self.assertEqual(codes[:2], ["", "en"])
+        with mock.patch.object(theme, "load_prefs", return_value={"theme": "gotham"}), \
+                mock.patch.object(theme, "save_prefs") as save:
+            window.language_dropdown.set_selected(codes.index("en"))
+        self.assertEqual(save.call_args.args[0], {"theme": "gotham", "language": "en"})
+        self.assertIn("Restart", window.language_note.get_label())
         window.destroy()
 
     def test_multiple_actions_stop_at_first_failure(self):

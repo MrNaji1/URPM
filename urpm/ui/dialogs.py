@@ -14,6 +14,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
+from urpm.i18n import _, ngettext  # noqa: E402
 from urpm.sources import Action, Package, Source, human_size  # noqa: E402
 from urpm.sources.base import UnsafeCommand, root_binary, which  # noqa: E402
 from urpm.ui.widgets import label  # noqa: E402
@@ -24,7 +25,7 @@ CANCELLED = -15          # our own code for "the user pressed Cancel"
 MAX_LOG_LINES = 4000     # output kept in the command window
 
 
-class _Dialog(Gtk.Window):
+class Dialog(Gtk.Window):
     def __init__(self, parent: Gtk.Window, title: str, width: int = 520):
         super().__init__(transient_for=parent, modal=True, title=title,
                          css_classes=["urpm", "dialog-window"], default_width=width,
@@ -42,7 +43,7 @@ class _Dialog(Gtk.Window):
                                              Gtk.CallbackAction.new(self._on_escape)))
         self.add_controller(escape)
 
-    def _on_escape(self, *_):
+    def _on_escape(self, *_args):
         self.close()
         return True
 
@@ -53,39 +54,40 @@ class _Dialog(Gtk.Window):
         return button
 
 
-class ConfirmRemoveDialog(_Dialog):
+class ConfirmRemoveDialog(Dialog):
     """Shows exactly what will run and what else would go, before anything happens."""
 
     def __init__(self, parent, pkg: Package, source: Source, action: Action, on_confirm):
-        super().__init__(parent, f"Remove {pkg.name}?")
+        super().__init__(parent, _("Remove {name}?").format(name=pkg.name))
         self._on_confirm = on_confirm
 
         top = Gtk.Box(spacing=14)
         top.append(label("🗑️", "big-emoji"))
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER)
-        titles.append(label(f"Remove {pkg.name}?", "placeholder-title", xalign=0, wrap=True))
+        titles.append(label(_("Remove {name}?").format(name=pkg.name), "placeholder-title",
+                            xalign=0, wrap=True))
         titles.append(label(f"{source.emoji} {source.label} · {pkg.version} · "
                             f"{human_size(pkg.size)}", "dim", xalign=0, wrap=True))
         top.append(titles)
         self.body.append(top)
 
-        self.body.append(label("URPM will run:", "key", xalign=0))
+        self.body.append(label(_("URPM will run:"), "key", xalign=0))
         self.body.append(label(action.display(), "mono", "command", xalign=0, wrap=True,
                                selectable=True, wrap_mode=Pango.WrapMode.CHAR))
         if action.root:
-            self.body.append(label("🔒 You'll be asked for your password.", "dim", xalign=0))
+            self.body.append(label(_("🔒 You'll be asked for your password."), "dim", xalign=0))
 
         self.sim_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.body.append(self.sim_box)
 
-        cancel = self.add_button("Cancel", "soft", self.close)
-        self.confirm = self.add_button("Remove", "danger", self._confirm)
+        cancel = self.add_button(_("Cancel"), "soft", self.close)
+        self.confirm = self.add_button(_("Remove"), "danger", self._confirm)
         self.confirm.set_sensitive(False)
         self.set_focus(cancel)  # never start with the destructive button focused
 
         spinner_row = Gtk.Box(spacing=8)
         spinner_row.append(Gtk.Spinner(spinning=True))
-        spinner_row.append(label("Checking what else would be removed…", "dim"))
+        spinner_row.append(label(_("Checking what else would be removed…"), "dim"))
         self.sim_box.append(spinner_row)
 
         def worker():
@@ -101,22 +103,25 @@ class ConfirmRemoveDialog(_Dialog):
         while child := self.sim_box.get_first_child():
             self.sim_box.remove(child)
         if error:
-            self.sim_box.append(label(f"⚠️ The package manager says: {error}", "warning",
+            self.sim_box.append(label(_("⚠️ The package manager says: {error}").format(error=error),
+                                      "warning",
                                       xalign=0, wrap=True))
         elif result is None:
             self.sim_box.append(label(
-                "ℹ️ URPM can't preview what else this package manager will remove. "
-                "Packages that depend on this one may be removed too.", "dim", xalign=0,
+                _("ℹ️ URPM can't preview what else this package manager will remove. "
+                  "Packages that depend on this one may be removed too."), "dim", xalign=0,
                 wrap=True))
         others = [name for name in (result or []) if name.split(":")[0] != pkg.name.split(":")[0]]
         if others:
             self.sim_box.append(label(
-                f"⚠️ This will also remove {len(others)} other package"
-                f"{'s' if len(others) != 1 else ''}:", "warning", xalign=0, wrap=True))
-            shown = ", ".join(others[:40]) + (f" …and {len(others) - 40} more"
-                                              if len(others) > 40 else "")
+                ngettext("⚠️ This will also remove {n} other package:",
+                         "⚠️ This will also remove {n} other packages:", len(others))
+                .format(n=len(others)), "warning", xalign=0, wrap=True))
+            shown = ", ".join(others[:40]) + (" " + _("… and {n} more").format(
+                n=len(others) - 40) if len(others) > 40 else "")
             self.sim_box.append(label(shown, "mono", "dim", xalign=0, wrap=True, selectable=True))
-            self.confirm.set_label(f"Remove {len(others) + 1} packages")
+            self.confirm.set_label(ngettext("Remove {n} package", "Remove {n} packages",
+                                            len(others) + 1).format(n=len(others) + 1))
         self.confirm.set_sensitive(True)
         return GLib.SOURCE_REMOVE
 
@@ -125,26 +130,27 @@ class ConfirmRemoveDialog(_Dialog):
         self._on_confirm()
 
 
-class ConfirmLaunchDialog(_Dialog):
+class ConfirmLaunchDialog(Dialog):
     """Ask before running an untrusted file, showing exactly which file it is."""
 
     def __init__(self, parent, name: str, path: str, reason: str, on_confirm):
-        super().__init__(parent, f"Open {name}?")
+        super().__init__(parent, _("Open {name}?").format(name=name))
         self._on_confirm = on_confirm
         top = Gtk.Box(spacing=14)
         top.append(label("⚠️", "big-emoji"))
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER)
-        titles.append(label(f"Open {name}?", "placeholder-title", xalign=0, wrap=True))
+        titles.append(label(_("Open {name}?").format(name=name), "placeholder-title", xalign=0,
+                            wrap=True))
         titles.append(label(reason, "dim", xalign=0, wrap=True, max_width_chars=55))
         top.append(titles)
         self.body.append(top)
-        self.body.append(label("File:", "key", xalign=0))
+        self.body.append(label(_("File:"), "key", xalign=0))
         self.body.append(label(path, "mono", "command", xalign=0, wrap=True, selectable=True,
                                wrap_mode=Pango.WrapMode.CHAR))
-        self.body.append(label("Only open files you downloaded on purpose, from a source you "
-                               "trust.", "warning", xalign=0, wrap=True))
-        cancel = self.add_button("Cancel", "soft", self.close)
-        self.confirm = self.add_button("Open anyway", "danger", self._confirm)
+        self.body.append(label(_("Only open files you downloaded on purpose, from a source you "
+                                 "trust."), "warning", xalign=0, wrap=True))
+        cancel = self.add_button(_("Cancel"), "soft", self.close)
+        self.confirm = self.add_button(_("Open anyway"), "danger", self._confirm)
         self.set_focus(cancel)  # never start with the risky button focused
 
     def _confirm(self):
@@ -152,7 +158,7 @@ class ConfirmLaunchDialog(_Dialog):
         self._on_confirm()
 
 
-class ConfirmCleanupDialog(_Dialog):
+class ConfirmCleanupDialog(Dialog):
     """Shows everything a cleanup will remove and the exact commands, before it runs."""
 
     MAX_SHOWN = 60
@@ -164,34 +170,34 @@ class ConfirmCleanupDialog(_Dialog):
         top.append(label("🧹", "big-emoji"))
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER)
         titles.append(label(item.title, "placeholder-title", xalign=0, wrap=True))
-        size = f"Frees {human_size(item.size)} · " if item.size else ""
+        size = _("Frees {size}").format(size=human_size(item.size)) + " · " if item.size else ""
         titles.append(label(f"{size}{item.source}", "dim", xalign=0, wrap=True))
         top.append(titles)
         self.body.append(top)
 
-        removed = {"packages": "These packages will be removed:",
-                   "data": "These folders will be moved to the Trash:"}.get(
-                       item.kind, "These will be emptied:")
+        removed = {"packages": _("These packages will be removed:"),
+                   "data": _("These folders will be moved to the Trash:")}.get(
+                       item.kind, _("These will be emptied:"))
         self.body.append(label(removed, "key", xalign=0))
         shown = item.items[:self.MAX_SHOWN]
         text = "\n".join(shown)
         if len(item.items) > self.MAX_SHOWN:
-            text += f"\n… and {len(item.items) - self.MAX_SHOWN} more"
+            text += "\n" + _("… and {n} more").format(n=len(item.items) - self.MAX_SHOWN)
         listing = label(text, "mono", "command", xalign=0, wrap=True, selectable=True,
                         wrap_mode=Pango.WrapMode.CHAR)
         self.body.append(Gtk.ScrolledWindow(child=listing, max_content_height=220,
                                             propagate_natural_height=True,
                                             hscrollbar_policy=Gtk.PolicyType.NEVER))
-        self.body.append(label("URPM will run:", "key", xalign=0))
+        self.body.append(label(_("URPM will run:"), "key", xalign=0))
         self.body.append(label("\n".join(a.display() for a in item.actions), "mono", "dim",
                                xalign=0, wrap=True, selectable=True,
                                wrap_mode=Pango.WrapMode.CHAR))
         if any(a.root for a in item.actions):
-            self.body.append(label("🔒 You'll be asked for your password.", "dim", xalign=0))
-        cancel = self.add_button("Cancel", "soft", self.close)
+            self.body.append(label(_("🔒 You'll be asked for your password."), "dim", xalign=0))
+        cancel = self.add_button(_("Cancel"), "soft", self.close)
         css = "cute" if item.kind == "cache" else "danger"
-        self.confirm = self.add_button(f"Free up {human_size(item.size)}" if item.size
-                                       else "Clean up", css, self._confirm)
+        self.confirm = self.add_button(_("Free up {size}").format(size=human_size(item.size))
+                                       if item.size else _("Clean up"), css, self._confirm)
         self.set_focus(cancel)
 
     def _confirm(self):
@@ -199,7 +205,7 @@ class ConfirmCleanupDialog(_Dialog):
         self._on_confirm()
 
 
-class CommandDialog(_Dialog):
+class CommandDialog(Dialog):
     """Runs one or more Actions in order and streams their output.
 
     Stops at the first failure, so a failed update never leads into the next one.
@@ -235,18 +241,18 @@ class CommandDialog(_Dialog):
         self.body.set_vexpand(True)
         self.body.append(self.scroller)
 
-        self.cancel_button = self.add_button("Cancel", "soft", self.cancel)
-        self.close_button = self.add_button("Close", "cute", self.close)
+        self.cancel_button = self.add_button(_("Cancel"), "soft", self.cancel)
+        self.close_button = self.add_button(_("Close"), "cute", self.close)
         self.close_button.set_sensitive(False)
         self.set_focus(self.cancel_button)  # not the command text, which would get selected
         self.set_deletable(False)
-        self.connect("close-request", lambda *_: not self._finished)
+        self.connect("close-request", lambda *_args: not self._finished)
 
         # Output is shown in batches, 10 times a second, instead of once per line.
         self._flush_source = GLib.timeout_add(100, self._flush)
         threading.Thread(target=self._run_all, args=(actions,), daemon=True).start()
 
-    def _on_escape(self, *_):
+    def _on_escape(self, *_args):
         if self._finished:
             self.close()
         return True
@@ -316,12 +322,12 @@ class CommandDialog(_Dialog):
             if proc is not None:
                 os.killpg(proc.pid, signal.SIGTERM)
                 GLib.timeout_add_seconds(5, self._force_stop, proc)
-            self.status.set_label("Stopping…")
+            self.status.set_label(_("Stopping…"))
         except PermissionError:
             # Running as administrator: our user can't stop it, and interrupting a package
             # manager halfway could leave things broken anyway.
-            self.status.set_label("⏳ This step runs as administrator and will finish on its "
-                                  "own. URPM will skip anything after it.")
+            self.status.set_label(_("⏳ This step runs as administrator and will finish on its "
+                                    "own. URPM will skip anything after it."))
 
     @staticmethod
     def _force_stop(proc: subprocess.Popen) -> bool:
@@ -340,9 +346,10 @@ class CommandDialog(_Dialog):
             self._flush_source = 0
         self.spinner.stop()
         self.spinner.set_visible(False)
-        messages = {0: "✅ All done!", PKEXEC_CANCELLED: "🔒 Password prompt was cancelled",
-                    PKEXEC_DENIED: "🔒 Not authorized", CANCELLED: "✋ Cancelled"}
-        self.status.set_label(messages.get(code, f"😿 Something went wrong (exit code {code})"))
+        messages = {0: _("✅ All done!"), PKEXEC_CANCELLED: _("🔒 Password prompt was cancelled"),
+                    PKEXEC_DENIED: _("🔒 Not authorized"), CANCELLED: _("✋ Cancelled")}
+        self.status.set_label(messages.get(code, _("😿 Something went wrong (exit code {code})")
+                                           .format(code=code)))
         self.cancel_button.set_visible(False)
         self.close_button.set_sensitive(True)
         self.set_deletable(True)
@@ -356,39 +363,59 @@ def can_run(action: Action) -> str | None:
     """Return a reason why the action can't run from the GUI, or None if it can."""
     if action.root:
         if not root_binary("pkexec"):
-            return "pkexec (polkit) isn't installed, so URPM can't ask for your password"
+            return _("pkexec (polkit) isn't installed, so URPM can't ask for your password")
         try:
             action.full_argv()
         except UnsafeCommand as exc:
             return str(exc)
         return None
     if not which(action.argv[0]) and not os.path.exists(action.argv[0]):
-        return f"{action.argv[0]} isn't installed"
+        return _("{program} isn't installed").format(program=action.argv[0])
     return None
 
 
 # ---------------------------------------------------------------- export
 
-def choose_export_file(parent: Gtk.Window, callback) -> None:
-    """Ask for a save location, then call callback(path). Works on GTK 4.0 through 4.x."""
-    name = f"urpm-packages-{time.strftime('%Y-%m-%d')}.csv"
+def choose_file(parent: Gtk.Window, title: str, callback, save_name: str | None = None,
+                patterns: tuple[str, ...] = ()) -> None:
+    """Ask for a file to save (save_name given) or open, then call callback(path).
+
+    Works on GTK 4.0 through 4.x.
+    """
+    file_filter = None
+    if patterns:
+        file_filter = Gtk.FileFilter()
+        file_filter.set_name(", ".join(patterns))
+        for pattern in patterns:
+            file_filter.add_pattern(pattern)
     if hasattr(Gtk, "FileDialog"):  # GTK 4.10+
-        dialog = Gtk.FileDialog(title="Export package list", initial_name=name, modal=True)
+        props = {"title": title, "modal": True}
+        if save_name:
+            props["initial_name"] = save_name
+        if file_filter:
+            props["default_filter"] = file_filter
+        dialog = Gtk.FileDialog(**props)
 
         def done(dlg, result):
             try:
-                file = dlg.save_finish(result)
+                file = dlg.save_finish(result) if save_name else dlg.open_finish(result)
             except GLib.Error:
                 return  # cancelled
             if file and file.get_path():
                 callback(file.get_path())
 
-        dialog.save(parent, None, done)
+        if save_name:
+            dialog.save(parent, None, done)
+        else:
+            dialog.open(parent, None, done)
         return
 
-    chooser = Gtk.FileChooserNative(title="Export package list", transient_for=parent,
-                                    action=Gtk.FileChooserAction.SAVE, modal=True)
-    chooser.set_current_name(name)
+    action = Gtk.FileChooserAction.SAVE if save_name else Gtk.FileChooserAction.OPEN
+    chooser = Gtk.FileChooserNative(title=title, transient_for=parent, action=action, modal=True)
+    if save_name:
+        chooser.set_current_name(save_name)
+    if file_filter:
+        chooser.add_filter(file_filter)
 
     def response(dlg, code):
         if code == Gtk.ResponseType.ACCEPT and dlg.get_file():
@@ -396,8 +423,13 @@ def choose_export_file(parent: Gtk.Window, callback) -> None:
         dlg.destroy()
 
     chooser.connect("response", response)
-    parent._export_chooser = chooser  # keep a reference until it closes
+    parent._file_chooser = chooser  # keep a reference until it closes
     chooser.show()
+
+
+def choose_export_file(parent: Gtk.Window, callback) -> None:
+    choose_file(parent, _("Export package list"), callback,
+                save_name=f"urpm-packages-{time.strftime('%Y-%m-%d')}.csv")
 
 
 def launch(argv: list[str]) -> None:
@@ -406,4 +438,4 @@ def launch(argv: list[str]) -> None:
 
 
 __all__ = ["CommandDialog", "ConfirmCleanupDialog", "ConfirmLaunchDialog",
-           "ConfirmRemoveDialog", "can_run", "choose_export_file", "launch"]
+           "ConfirmRemoveDialog", "can_run", "choose_export_file", "choose_file", "launch"]

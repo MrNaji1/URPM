@@ -64,6 +64,11 @@ class XbpsSource(Source):
     def launch_argv(self, pkg: Package) -> list[str] | None:
         return desktop_launcher(self.files(pkg))
 
+    def install_actions(self, pkgs: list[Package]) -> list[Action]:
+        names = [p.name for p in pkgs]
+        return [Action(["xbps-install", "-Sy", *names], root=True,
+                       pretty=f"sudo xbps-install -S {' '.join(names)}")] if names else []
+
     def remove_action(self, pkg: Package) -> Action:
         return Action(["xbps-remove", "-Ry", pkg.name], root=True,
                       pretty=f"sudo xbps-remove -R {pkg.name}")

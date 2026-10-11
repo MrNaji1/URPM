@@ -1,0 +1,36 @@
+# Maintainer: MrNaji1 <https://github.com/MrNaji1>
+# The latest code from GitHub. For the latest release, use the "urpm" package instead.
+#   git clone https://aur.archlinux.org/urpm-git.git && cd urpm-git && makepkg -si
+pkgname=urpm-git
+pkgver=2.2.0.r0.g0000000
+pkgrel=1
+pkgdesc="Cute GTK app that shows every package installed on your Linux machine (latest code)"
+arch=('any')
+url="https://github.com/MrNaji1/URPM"
+license=('MIT')
+depends=('python' 'python-gobject' 'gtk4')
+makedepends=('git')
+optdepends=('polkit: remove and update packages from inside URPM'
+            'pacman-contrib: see available pacman updates and old cached packages'
+            'arch-audit: mark updates that fix security problems'
+            'flatpak: list Flatpak apps')
+provides=('urpm')
+conflicts=('urpm')
+source=("$pkgname::git+$url.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "$pkgname"
+  git describe --long --tags | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+}
+
+check() {
+  cd "$pkgname"
+  python -m unittest discover -s tests
+}
+
+package() {
+  cd "$pkgname"
+  make install DESTDIR="$pkgdir" PREFIX=/usr
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

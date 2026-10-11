@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import threading
 
 import gi
@@ -9,7 +10,9 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
+from urpm.i18n import _, ngettext  # noqa: E402
 from urpm.sources import human_size  # noqa: E402
+from urpm.sources.base import dir_size  # noqa: E402
 from urpm.ui.widgets import (avatar_class, clear, format_date, label, pill_classes,  # noqa: E402
                              short_label, show_icon)
 
@@ -32,8 +35,8 @@ class DetailsPanel(Gtk.Stack):
                         valign=Gtk.Align.CENTER, halign=Gtk.Align.CENTER, margin_start=24,
                         margin_end=24)
         empty.append(label("✨", "big-emoji"))
-        empty.append(label("Pick a package", "placeholder-title"))
-        empty.append(label("Click any row to see its story", "dim"))
+        empty.append(label(_("Pick a package"), "placeholder-title"))
+        empty.append(label(_("Click any row to see its story"), "dim"))
         self.add_named(empty, "empty")
 
         inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10,
@@ -60,42 +63,58 @@ class DetailsPanel(Gtk.Stack):
         inner.append(self.summary)
 
         actions = Gtk.Box(spacing=8, margin_top=4)
-        self.open_button = self._button(actions, "🚀 Open", "cute",
+        self.open_button = self._button(actions, _("🚀 Open"), "cute",
                                         lambda: on_open(self.launcher))
-        self.update_button = self._button(actions, "✨ Update", "cute", on_update)
-        self.remove_button = self._button(actions, "🗑️ Remove", "danger", on_remove)
+        self.update_button = self._button(actions, _("✨ Update"), "cute", on_update)
+        self.remove_button = self._button(actions, _("🗑️ Remove"), "danger", on_remove)
         inner.append(actions)
 
         copies = Gtk.Box(spacing=8)
-        self._button(copies, "Copy uninstall command", "soft", on_copy_command, small=True)
-        self._button(copies, "Copy name", "soft", on_copy_name, small=True)
+        self._button(copies, _("Copy uninstall command"), "soft", on_copy_command, small=True)
+        self._button(copies, _("Copy name"), "soft", on_copy_name, small=True)
         inner.append(copies)
-        self.hold_button = self._button(inner, "📌 Keep this version", "soft",
+        self.hold_button = self._button(inner, _("📌 Keep this version"), "soft",
                                         lambda: on_hold and on_hold(), small=True)
         self.hold_button.set_halign(Gtk.Align.START)
 
         self.info = Gtk.Grid(column_spacing=14, row_spacing=6, margin_top=6)
         inner.append(self.info)
 
-        inner.append(label("ABOUT", "section-heading", xalign=0))
+        inner.append(label(_("ABOUT"), "section-heading", xalign=0))
         self.spinner = Gtk.Spinner(halign=Gtk.Align.START)
         inner.append(self.spinner)
         self.description = label("", xalign=0, wrap=True, selectable=True,
                                  wrap_mode=Pango.WrapMode.WORD_CHAR)
         inner.append(self.description)
-        self.more_heading = label("MORE", "section-heading", xalign=0)
+        self.more_heading = label(_("MORE"), "section-heading", xalign=0)
         inner.append(self.more_heading)
         self.more = Gtk.Grid(column_spacing=14, row_spacing=6)
         inner.append(self.more)
 
-        self.needed_heading = label("NEEDED BY", "section-heading", xalign=0)
+        self.needed_heading = label(_("NEEDED BY"), "section-heading", xalign=0)
         inner.append(self.needed_heading)
         self.needed_by = label("", xalign=0, wrap=True, selectable=True,
                                wrap_mode=Pango.WrapMode.WORD_CHAR)
         inner.append(self.needed_by)
 
-        inner.append(label("FILES", "section-heading", xalign=0))
-        self.files_button = self._button(inner, "Show files", "soft", self.load_files,
+        self.permissions_heading = label(_("PERMISSIONS"), "section-heading", xalign=0)
+        inner.append(self.permissions_heading)
+        self.permissions_summary = label("", xalign=0, wrap=True)
+        inner.append(self.permissions_summary)
+        self.permissions = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        inner.append(self.permissions)
+        self.data_row = Gtk.Box(spacing=8)
+        self.data_label = label("", "dim", "small", xalign=0, wrap=True, hexpand=True,
+                                wrap_mode=Pango.WrapMode.WORD_CHAR)
+        self.data_row.append(self.data_label)
+        self.data_button = self._button(self.data_row, _("Open folder"), "soft",
+                                        self._open_data_folder, small=True)
+        self.data_button.set_valign(Gtk.Align.CENTER)
+        inner.append(self.data_row)
+        self.data_folder = None
+
+        inner.append(label(_("FILES"), "section-heading", xalign=0))
+        self.files_button = self._button(inner, _("Show files"), "soft", self.load_files,
                                          small=True)
         self.files_button.set_halign(Gtk.Align.START)
         self.files_buffer = Gtk.TextBuffer()
@@ -140,24 +159,24 @@ class DetailsPanel(Gtk.Stack):
         clear(self.badges)
         self.badges.append(label(f"{src.emoji} {short_label(src)}", *pill_classes(src)))
         if src.tracks_explicit:
-            self.badges.append(label("💖 yours", "pill", "pill-mine") if pkg.explicit
-                               else label("🔗 dependency", "pill", "pill-dep"))
+            self.badges.append(label(_("💖 yours"), "pill", "pill-mine") if pkg.explicit
+                               else label(_("🔗 dependency"), "pill", "pill-dep"))
         if pkg.held:
-            self.badges.append(label("📌 held", "pill", "pill-held"))
+            self.badges.append(label(_("📌 held"), "pill", "pill-held"))
         if pkg.update and pkg.security:
-            self.badges.append(label("🛡 security update", "pill", "pill-security"))
+            self.badges.append(label(_("🛡 security update"), "pill", "pill-security"))
         elif pkg.update:
-            self.badges.append(label("✨ update", "pill", "pill-update"))
+            self.badges.append(label(_("✨ update"), "pill", "pill-update"))
 
-        rows = [("Size", human_size(pkg.size)), ("Section", pkg.section),
-                ("Updated", format_date(pkg.installed))]
+        rows = [(_("Size"), human_size(pkg.size)), (_("Section"), pkg.section),
+                (_("Updated"), format_date(pkg.installed))]
         if pkg.ident != pkg.name:
-            rows.append(("ID", pkg.ident))
+            rows.append((_("ID"), pkg.ident))
         rows = [(k, v) for k, v in rows if v and v != "—"]
         self._fill_grid(self.info, rows)
         if pkg.homepage.startswith(("http://", "https://")):
-            link = Gtk.LinkButton(uri=pkg.homepage, label="Homepage ↗", halign=Gtk.Align.START)
-            self.info.attach(label("Web", "key", xalign=0), 0, len(rows), 1, 1)
+            link = Gtk.LinkButton(uri=pkg.homepage, label=_("Homepage ↗"), halign=Gtk.Align.START)
+            self.info.attach(label(_("Web"), "key", xalign=0), 0, len(rows), 1, 1)
             self.info.attach(link, 1, len(rows), 1, 1)
 
         remove = src.remove_action(pkg)
@@ -166,7 +185,8 @@ class DetailsPanel(Gtk.Stack):
         self.update_button.set_visible(update is not None)
         hold = src.unhold_action(pkg) if pkg.held else src.hold_action(pkg)
         self.hold_button.set_visible(hold is not None)
-        self.hold_button.set_label("📌 Allow updates again" if pkg.held else "📌 Keep this version")
+        self.hold_button.set_label(_("📌 Allow updates again") if pkg.held
+                                   else _("📌 Keep this version"))
         self.hold_button.set_tooltip_text(hold.display() if hold else None)
         self.update_button.set_tooltip_text(update.display() if update else None)
         self.remove_button.set_tooltip_text(remove.display() if remove else None)
@@ -179,9 +199,10 @@ class DetailsPanel(Gtk.Stack):
         clear(self.more)
         self.needed_heading.set_visible(False)
         self.needed_by.set_visible(False)
+        self._show_permissions(None, None, 0)
         self.files_scroller.set_visible(False)
         self.files_buffer.set_text("")
-        self.files_button.set_label("Show files")
+        self.files_button.set_label(_("Show files"))
         self.files_button.set_sensitive(True)
         self.spinner.set_visible(True)
         self.spinner.start()
@@ -201,17 +222,29 @@ class DetailsPanel(Gtk.Stack):
                 needed_by = src.required_by(pkg)
             except Exception:
                 needed_by = None
-            GLib.idle_add(self._on_details_loaded, token, details, error, launcher, needed_by)
+            try:
+                permissions = src.permissions(pkg)
+            except Exception:
+                permissions = None
+            try:
+                folder = src.data_folder(pkg)
+                size = dir_size(folder) if folder else 0
+            except Exception:
+                folder, size = None, 0
+            GLib.idle_add(self._on_details_loaded, token, details, error, launcher, needed_by,
+                          permissions, folder, size)
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _on_details_loaded(self, token, details, error, launcher, needed_by=None) -> bool:
+    def _on_details_loaded(self, token, details, error, launcher, needed_by=None,
+                           permissions=None, folder=None, size=0) -> bool:
         if token != self._token:
             return GLib.SOURCE_REMOVE  # the user already picked something else
         self.spinner.stop()
         self.spinner.set_visible(False)
-        self.description.set_label(f"Couldn't load details: {error}" if error
-                                   else details.description or "No description provided.")
+        self.description.set_label(_("Couldn't load details: {error}").format(error=error)
+                                   if error else details.description
+                                   or _("No description provided."))
         self.description.set_visible(True)
         if details and details.fields:
             self.more_heading.set_visible(True)
@@ -222,7 +255,40 @@ class DetailsPanel(Gtk.Stack):
         self.needed_heading.set_visible(text is not None)
         self.needed_by.set_visible(text is not None)
         self.needed_by.set_label(text or "")
+        self._show_permissions(permissions, folder, size)
         return GLib.SOURCE_REMOVE
+
+    def _show_permissions(self, permissions, folder, size) -> None:
+        clear(self.permissions)
+        shown = permissions is not None
+        self.permissions_heading.set_visible(shown or bool(folder))
+        self.permissions_summary.set_visible(shown)
+        if shown:
+            risky = sum(1 for p in permissions if p.risky)
+            self.permissions_summary.set_label(
+                ngettext("⚠️ {n} permission reaches outside the sandbox.",
+                         "⚠️ {n} permissions reach outside the sandbox.", risky).format(n=risky)
+                if risky else _("🔒 Nicely sandboxed: nothing reaches outside it.")
+                if permissions else _("🔒 No special permissions."))
+            for perm in permissions:
+                classes = ("warning",) if perm.risky else ()
+                self.permissions.append(label(f"{perm.emoji}  {perm.text}", *classes, xalign=0,
+                                              wrap=True))
+            if permissions:
+                self.permissions.append(label(_("You can change these with Flatseal or "
+                                                "`flatpak override`."), "dim", "small", xalign=0,
+                                              wrap=True, margin_top=4))
+        self.data_folder = folder
+        self.data_row.set_visible(bool(folder))
+        if folder:
+            self.data_label.set_label(_("📁 Keeps {size} of your data in {folder}").format(
+                size=human_size(size) if size else "0 B",
+                folder=folder.replace(os.path.expanduser("~"), "~", 1)))
+
+    def _open_data_folder(self) -> None:
+        if self.data_folder:
+            from urpm.ui.dialogs import launch
+            launch(["gio", "open", self.data_folder])
 
     @staticmethod
     def _fill_grid(grid: Gtk.Grid, rows) -> None:
@@ -239,7 +305,7 @@ class DetailsPanel(Gtk.Stack):
         if not item:
             return
         self.files_button.set_sensitive(False)
-        self.files_button.set_label("Loading files…")
+        self.files_button.set_label(_("Loading files…"))
         token = self._token
 
         def worker():
@@ -255,13 +321,14 @@ class DetailsPanel(Gtk.Stack):
         if token != self._token:
             return GLib.SOURCE_REMOVE
         if error or files is None:
-            self.files_button.set_label(f"Couldn't list files: {error}" if error
-                                        else "This source doesn't track files")
+            self.files_button.set_label(_("Couldn't list files: {error}").format(error=error)
+                                        if error else _("This source doesn't track files"))
             return GLib.SOURCE_REMOVE
-        self.files_button.set_label(f"{len(files):,} file{'s' if len(files) != 1 else ''}")
+        self.files_button.set_label(ngettext("{n} file", "{n} files", len(files)).format(
+            n=f"{len(files):,}"))
         text = "\n".join(files[:MAX_FILES_SHOWN])
         if len(files) > MAX_FILES_SHOWN:
-            text += f"\n… and {len(files) - MAX_FILES_SHOWN:,} more"
+            text += "\n" + _("… and {n} more").format(n=f"{len(files) - MAX_FILES_SHOWN:,}")
         self.files_buffer.set_text(text)
         self.files_scroller.set_visible(True)
         return GLib.SOURCE_REMOVE
@@ -273,10 +340,11 @@ def describe_needed_by(names: list[str] | None, explicit: bool) -> str | None:
         return None
     if not names:
         if explicit:
-            return "Nothing else installed needs this."
-        return ("Nothing installed needs this any more, so it can probably be removed "
-                "(see Cleanup).")
+            return _("Nothing else installed needs this.")
+        return _("Nothing installed needs this any more, so it can probably be removed "
+                 "(see Cleanup).")
     shown = ", ".join(names[:MAX_NEEDED_BY_SHOWN])
     if len(names) > MAX_NEEDED_BY_SHOWN:
-        shown += f" … and {len(names) - MAX_NEEDED_BY_SHOWN} more"
-    return f"{len(names)} installed package{'s' if len(names) != 1 else ''}: {shown}"
+        shown += " " + _("… and {n} more").format(n=len(names) - MAX_NEEDED_BY_SHOWN)
+    return ngettext("{n} installed package: {names}", "{n} installed packages: {names}",
+                    len(names)).format(n=len(names), names=shown)

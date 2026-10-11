@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import re
 
+from urpm.i18n import _
+
 from .base import (Cleanup, SYSTEM, Action, Details, Package, Source, apply_updates, desktop_launcher,
                    parse_fields, run, which)
 
@@ -17,6 +19,9 @@ APT_HISTORY = "/var/log/apt/history.log"
 ARCHIVES = "/var/cache/apt/archives"   # downloaded .deb files
 APPLICATIONS = "/usr/share/applications"  # where packaged apps put their menu entries
 STATUS_FILE = "/var/lib/dpkg/status"
+# What the installer put on the system (Ubuntu, Mint, Pop!_OS…). The installer marks the
+# whole base system as "manually installed", so these aren't "installed by you".
+INITIAL_STATUS = "/var/log/installer/initial-status.gz"
 EXTRA_FIELDS = ("Maintainer", "Architecture", "Source", "Priority", "Depends", "Recommends")
 NONINTERACTIVE = {"DEBIAN_FRONTEND": "noninteractive"}
 # There's no terminal to answer "keep your modified config file?", so keep it.
@@ -38,7 +43,7 @@ def parse_dpkg_list(text: str, manual: set[str] | None, native_arch: str = "") -
         explicit = True
         if manual is not None:
             # apt-mark drops the ":amd64" that dpkg adds to native Multi-Arch packages.
-            base, _, arch = name.partition(":")
+            base, _sep, arch = name.partition(":")
             explicit = name in manual or (arch == native_arch and base in manual)
         packages.append(Package(
             name=name,
@@ -107,7 +112,7 @@ def parse_security_updates(text: str) -> set[str]:
     """Packages in `apt list --upgradable` whose new version comes from a -security suite."""
     found = set()
     for line in text.splitlines():
-        name, _, rest = line.partition("/")
+        name, _sep, rest = line.partition("/")
         suites = rest.split(" ", 1)[0]
         if "upgradable from" in line and any(s.endswith("-security") for s in suites.split(",")):
             found.add(name)
@@ -133,6 +138,28 @@ def _size(path: str) -> int:
         return 0
 
 
+def parse_initial_status(text: str) -> set[str]:
+    """Package names (with and without ":arch") from the installer's dpkg status copy."""
+    names, name = set(), None
+    for line in text.splitlines():
+        if line.startswith("Package: "):
+            name = line[9:].strip()
+            names.add(name)
+        elif line.startswith("Architecture: ") and name:
+            names.add(f"{name}:{line[14:].strip()}")
+    return names
+
+
+def installer_packages() -> set[str]:
+    """Everything the installer put on the system, or an empty set if it left no record."""
+    import gzip
+    try:
+        with gzip.open(INITIAL_STATUS, "rt", encoding="utf-8", errors="replace") as fh:
+            return parse_initial_status(fh.read())
+    except (OSError, EOFError):
+        return set()
+
+
 class DpkgSource(Source):
     id = "apt"
     label = "APT"
@@ -148,7 +175,7 @@ class DpkgSource(Source):
             return []  # dpkg installed as a helper tool on a non-Debian system
         manual = None
         if which("apt-mark"):
-            manual = set(run("apt-mark", "showmanual").split())
+            manual = set(run("apt-mark", "showmanual").split()) - installer_packages()
         native_arch = run("dpkg", "--print-architecture").strip()
         packages = parse_dpkg_list(run("dpkg-query", "-W", "-f", FORMAT), manual, native_arch)
         if which("apt-mark"):
@@ -180,6 +207,20 @@ class DpkgSource(Source):
         tool = "apt-get" if which("apt-get") else "dpkg"
         argv = ["apt-get", "remove", "-y", pkg.name] if tool == "apt-get" else ["dpkg", "-r", pkg.name]
         return Action(argv, root=True, env=NONINTERACTIVE, pretty=f"sudo apt remove {pkg.name}")
+
+    exists_check = ["apt-cache", "show"]
+
+    def installable(self, names: list[str]) -> set[str] | None:
+        if not names or not which("apt-cache"):
+            return None
+        text = run("apt-cache", "show", "--no-all-versions", *names, ok_codes=(0, 100))
+        found = {line[9:].strip() for line in text.splitlines() if line.startswith("Package: ")}
+        return {n for n in names if n.split(":")[0] in found}
+
+    def install_actions(self, pkgs: list[Package]) -> list[Action]:
+        names = [p.name for p in pkgs]
+        return [Action(["apt-get", "install", "-y", *names], root=True, env=NONINTERACTIVE,
+                       pretty=f"sudo apt install {' '.join(names)}")] if names else []
 
     def simulate_remove(self, pkg: Package) -> list[str] | None:
         if not which("apt-get"):
@@ -229,9 +270,9 @@ class DpkgSource(Source):
             if unused:
                 sizes = {p.name.split(":")[0]: p.size for p in packages}
                 found.append(Cleanup(
-                    "apt-autoremove", "Unused APT packages",
-                    "Packages that were installed as dependencies of something you've since "
-                    "removed. Nothing installed needs them any more.",
+                    "apt-autoremove", _("Unused APT packages"),
+                    _("Packages that were installed as dependencies of something you've since "
+                      "removed. Nothing installed needs them any more."),
                     self.label, sum(sizes.get(n.split(":")[0], 0) for n in unused), unused,
                     [Action(["apt-get", "autoremove", "-y"], root=True, env=NONINTERACTIVE,
                             pretty="sudo apt autoremove")]))
@@ -240,9 +281,9 @@ class DpkgSource(Source):
             size = sum(_size(f) for f in downloads)
             if size:
                 found.append(Cleanup(
-                    "apt-cache", "Downloaded APT packages",
-                    "Copies of .deb files APT downloaded to install or update packages. "
-                    "They're no longer needed and can be downloaded again.",
+                    "apt-cache", _("Downloaded APT packages"),
+                    _("Copies of .deb files APT downloaded to install or update packages. "
+                      "They're no longer needed and can be downloaded again."),
                     self.label, size, [ARCHIVES], [Action(["apt-get", "clean"], root=True,
                                                            pretty="sudo apt clean")],
                     kind="cache"))

@@ -9,18 +9,21 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, Pango  # noqa: E402
 
-from urpm.history import DOWNGRADED, INSTALLED, REINSTALLED, REMOVED, UPDATED, Event  # noqa: E402
+from urpm.history import (DOWNGRADED, INSTALLED, REINSTALLED, REMOVED, UPDATED,  # noqa: E402
+                          Event, action_word)
+from urpm.i18n import N_, _, ngettext, strftime  # noqa: E402
 from urpm.ui.widgets import clear, label  # noqa: E402
 
 PAGE_SIZE = 250
-ACTION_LOOK = {  # emoji, verb, css class
-    INSTALLED: ("🆕", "Installed", "pill-mint"),
-    UPDATED: ("⬆️", "Updated", "pill-blue"),
-    REMOVED: ("🗑️", "Removed", "pill-rose"),
-    DOWNGRADED: ("⬇️", "Downgraded", "pill-peach"),
-    REINSTALLED: ("🔁", "Reinstalled", "pill-gray"),
+ACTION_LOOK = {  # emoji, css class
+    INSTALLED: ("🆕", "pill-mint"),
+    UPDATED: ("⬆️", "pill-blue"),
+    REMOVED: ("🗑️", "pill-rose"),
+    DOWNGRADED: ("⬇️", "pill-peach"),
+    REINSTALLED: ("🔁", "pill-gray"),
 }
-FILTERS = (("all", "All"), (INSTALLED, "Installed"), (UPDATED, "Updated"), (REMOVED, "Removed"))
+FILTERS = (("all", N_("All")), (INSTALLED, N_("Installed")), (UPDATED, N_("Updated")),
+           (REMOVED, N_("Removed")))
 
 
 def day_label(when: float, now: float | None = None) -> str:
@@ -29,10 +32,11 @@ def day_label(when: float, now: float | None = None) -> str:
     days_ago = (time.mktime(today[:3] + (0, 0, 0) + today[6:]) -
                 time.mktime(day[:3] + (0, 0, 0) + day[6:])) // 86400
     if days_ago == 0:
-        return "Today"
+        return _("Today")
     if days_ago == 1:
-        return "Yesterday"
-    return time.strftime("%A, %b %d, %Y", day)
+        return _("Yesterday")
+    # Translators can reorder this date format, e.g. "%A %d %b %Y".
+    return strftime(_("%A, %b %d, %Y"), day)
 
 
 class HistoryPage(Gtk.ScrolledWindow):
@@ -50,8 +54,9 @@ class HistoryPage(Gtk.ScrolledWindow):
         header.append(label("🕘", "big-emoji"))
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER,
                          hexpand=True)
-        self.title = label("Reading your package history…", "tool-title", xalign=0, wrap=True)
-        self.subtitle = label("From your package managers' own logs", "dim", xalign=0, wrap=True)
+        self.title = label(_("Reading your package history…"), "tool-title", xalign=0, wrap=True)
+        self.subtitle = label(_("From your package managers' own logs"), "dim", xalign=0,
+                              wrap=True)
         titles.append(self.title)
         titles.append(self.subtitle)
         header.append(titles)
@@ -59,7 +64,7 @@ class HistoryPage(Gtk.ScrolledWindow):
         self.chips: dict[str, Gtk.ToggleButton] = {}
         group = None
         for key, text in FILTERS:
-            chip = Gtk.ToggleButton(label=text, css_classes=["chip"], active=key == "all")
+            chip = Gtk.ToggleButton(label=_(text), css_classes=["chip"], active=key == "all")
             if group:
                 chip.set_group(group)
             group = group or chip
@@ -71,7 +76,7 @@ class HistoryPage(Gtk.ScrolledWindow):
 
         self.list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         box.append(self.list)
-        self.more = Gtk.Button(label="Show more", css_classes=["soft"], halign=Gtk.Align.CENTER,
+        self.more = Gtk.Button(label=_("Show more"), css_classes=["soft"], halign=Gtk.Align.CENTER,
                                visible=False)
         self.more.connect("clicked", lambda _b: self._show_more())
         box.append(self.more)
@@ -115,16 +120,17 @@ class HistoryPage(Gtk.ScrolledWindow):
         matching = self.matching()
         total = len(self.events)
         if not total:
-            self.title.set_label("No history found")
-            self.subtitle.set_label("Your package managers haven't logged any changes yet, or "
-                                    "their logs aren't readable.")
+            self.title.set_label(_("No history found"))
+            self.subtitle.set_label(_("Your package managers haven't logged any changes yet, "
+                                      "or their logs aren't readable."))
         else:
             month = sum(1 for e in self.events if e.time >= time.time() - 30 * 86400)
-            self.title.set_label(f"{total:,} change{'s' if total != 1 else ''}")
-            self.subtitle.set_label(f"{month:,} in the last 30 days · from your package "
-                                    "managers' own logs")
+            self.title.set_label(ngettext("{n} change", "{n} changes", total).format(
+                n=f"{total:,}"))
+            self.subtitle.set_label(_("{n} in the last 30 days · from your package managers' "
+                                      "own logs").format(n=f"{month:,}"))
         if total and not matching:
-            self.list.append(label("Nothing matches these filters.", "dim", margin_top=12))
+            self.list.append(label(_("Nothing matches these filters."), "dim", margin_top=12))
         current_day = None
         for event in matching[:self.limit]:
             day = day_label(event.time)
@@ -133,10 +139,11 @@ class HistoryPage(Gtk.ScrolledWindow):
                 self.list.append(label(day.upper(), "section-heading", xalign=0, margin_top=10))
             self.list.append(self._row(event))
         self.more.set_visible(len(matching) > self.limit)
-        self.more.set_label(f"Show more ({len(matching) - self.limit:,} left)")
+        self.more.set_label(_("Show more ({n} left)").format(n=f"{len(matching) - self.limit:,}"))
 
     def _row(self, event: Event) -> Gtk.Widget:
-        emoji, verb, css = ACTION_LOOK.get(event.action, ("•", event.action.title(), "pill-gray"))
+        emoji, css = ACTION_LOOK.get(event.action, ("•", "pill-gray"))
+        verb = action_word(event.action)
         row = Gtk.Box(spacing=12, css_classes=["history-row"])
         row.append(label(time.strftime("%H:%M", time.localtime(event.time)), "dim", "small",
                          "mono", valign=Gtk.Align.CENTER))
@@ -146,7 +153,7 @@ class HistoryPage(Gtk.ScrolledWindow):
         text.append(label(event.name, "pkg-name", xalign=0, ellipsize=Pango.EllipsizeMode.END))
         version = (f"{event.old_version} → {event.version}" if event.old_version
                    else event.version)
-        detail = " · ".join(p for p in (version, "as a dependency" if event.automatic else "")
+        detail = " · ".join(p for p in (version, _("as a dependency") if event.automatic else "")
                             if p)
         if detail:
             text.append(label(detail, "dim", "small", "mono", xalign=0,
@@ -154,7 +161,7 @@ class HistoryPage(Gtk.ScrolledWindow):
         row.append(text)
         row.append(label(event.source, "pill", "pill-gray", valign=Gtk.Align.CENTER))
         if event.action != REMOVED:
-            show = Gtk.Button(label="Details", css_classes=["soft", "small-button"],
+            show = Gtk.Button(label=_("Details"), css_classes=["soft", "small-button"],
                               valign=Gtk.Align.CENTER)
             show.connect("clicked", lambda _b: self._on_show_package(event))
             row.append(show)

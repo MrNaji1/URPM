@@ -81,6 +81,7 @@ class FakeSystem:
             mock.patch.object(dpkg, "APPLICATIONS", str(root / "usr/share/applications")),
             mock.patch.object(rpm, "DNF_CACHES", (str(root / "dnf-cache"),)),
             mock.patch.object(dpkg, "APT_HISTORY", str(root / "logs/apt/history.log")),
+            mock.patch.object(dpkg, "INITIAL_STATUS", str(root / "dpkg/initial-status.gz")),
             mock.patch.object(rpm, "DNF_RPM_LOG", str(root / "logs/dnf.rpm.log")),
             mock.patch.object(rpm, "ZYPP_HISTORY", str(root / "logs/zypp/history")),
             mock.patch.object(pacman, "PACMAN_LOG", str(root / "logs/pacman.log")),
@@ -119,6 +120,10 @@ class FakeSystem:
         # Debian
         write(r / "dpkg/status", "Package: firefox\nStatus: install ok installed\n")
         write(r / "dpkg/info/firefox.list", "/usr/bin/firefox\n")
+        # What the distro installer put on the system (Ubuntu keeps a copy of it)
+        with gzip.open(r / "dpkg/initial-status.gz", "wt") as fh:
+            fh.write("Package: nano\nStatus: install ok installed\nArchitecture: amd64\n\n"
+                     "Package: libc6\nArchitecture: amd64\n")
         (r / "rpmdb").mkdir()
 
         # Alpine: the installed database, and the "world" file of what you asked for

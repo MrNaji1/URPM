@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 
+from urpm.i18n import _
+
 from .base import (Cleanup, dir_size, SYSTEM, Action, Details, Package, Source, apply_updates, desktop_launcher,
                    parse_fields, run, which)
 
@@ -112,7 +114,7 @@ class RpmSource(Source):
         return packages
 
     def details(self, pkg: Package) -> Details:
-        head, _, desc = run("rpm", "-qi", pkg.name).partition("\nDescription :")
+        head, _sep, desc = run("rpm", "-qi", pkg.name).partition("\nDescription :")
         fields = parse_fields(head)
         return Details(description=desc.strip(),
                        fields=[(k, fields[k]) for k in INFO_FIELDS if fields.get(k)])
@@ -143,6 +145,17 @@ class RpmSource(Source):
                        "--recursive", "--qf", "%{name}\n", "-q", timeout=120)
             return [pkg.name, *sorted({n for n in text.split() if n != pkg.name})]
         return None
+
+    def install_actions(self, pkgs: list[Package]) -> list[Action]:
+        names = [p.name for p in pkgs]
+        tool = frontend()
+        if not names or not tool:
+            return []
+        if tool == "zypper":
+            return [Action(["zypper", "--non-interactive", "install", *names], root=True,
+                           pretty=f"sudo zypper install {' '.join(names)}")]
+        return [Action([tool, "install", "-y", *names], root=True,
+                       pretty=f"sudo {tool} install {' '.join(names)}")]
 
     def update_actions(self, pkgs: list[Package]) -> list[Action]:
         tool = frontend()
@@ -189,9 +202,9 @@ class RpmSource(Source):
         if unneeded:
             sizes = {p.name: p.size for p in packages}
             found.append(Cleanup(
-                "dnf-autoremove", "Unused packages",
-                "Packages that were installed as dependencies of something you've since "
-                "removed. Nothing installed needs them any more.",
+                "dnf-autoremove", _("Unused packages"),
+                _("Packages that were installed as dependencies of something you've since "
+                  "removed. Nothing installed needs them any more."),
                 self.label, sum(sizes.get(n, 0) for n in unneeded), unneeded,
                 [Action([tool, "autoremove", "-y"], root=True,
                         pretty=f"sudo {tool} autoremove")]))
@@ -199,9 +212,9 @@ class RpmSource(Source):
         size = sum(dir_size(d) for d in caches)
         if size:
             found.append(Cleanup(
-                "dnf-cache", "DNF download cache",
-                "Downloaded packages and repository data. DNF fetches fresh copies when it "
-                "needs them.", self.label, size, caches,
+                "dnf-cache", _("DNF download cache"),
+                _("Downloaded packages and repository data. DNF fetches fresh copies when it "
+                  "needs them."), self.label, size, caches,
                 [Action([tool, "clean", "all"], root=True, pretty=f"sudo {tool} clean all")],
                 kind="cache"))
         return found

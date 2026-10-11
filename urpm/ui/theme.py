@@ -14,6 +14,8 @@ from pathlib import Path
 
 from gi.repository import GLib, Gtk
 
+from urpm.i18n import N_
+
 STYLE = Path(__file__).with_name("style.css")
 CONFIG = Path(GLib.get_user_config_dir()) / "urpm" / "settings.json"
 
@@ -61,7 +63,7 @@ def _register(theme: ThemeDef) -> ThemeDef:
 
 
 COTTON_CANDY = _register(ThemeDef(
-    "cotton-candy", "Cotton Candy", "🍬", "Soft pink and pastel. The original look.", dark=False,
+    "cotton-candy", "Cotton Candy", "🍬", N_("Soft pink and pastel. The original look."), dark=False,
     colors={
         "bg": "#fdf6fa", "surface": "#ffffff", "sidebar": "#f7edf6", "header": "#fbeff6",
         "fg": "#3d2f45", "dim": "#8c7b96", "border": "#efdfee", "chip": "#f4e6f1",
@@ -73,7 +75,7 @@ COTTON_CANDY = _register(ThemeDef(
     }))
 
 MIDNIGHT = _register(ThemeDef(
-    "midnight", "Midnight", "🌙", "Dark plum with pink highlights. Easy on the eyes.", dark=True,
+    "midnight", "Midnight", "🌙", N_("Dark plum with pink highlights. Easy on the eyes."), dark=True,
     colors={
         "bg": "#1d1922", "surface": "#26212d", "sidebar": "#211c28", "header": "#231e2a",
         "fg": "#f3eaf7", "dim": "#a998b4", "border": "#362e40", "chip": "#332b3c",
@@ -85,7 +87,7 @@ MIDNIGHT = _register(ThemeDef(
     }))
 
 GOTHAM = _register(ThemeDef(
-    "gotham", "Gotham", "🦇", "Near-black with bat-signal yellow. For the dark knight.", dark=True,
+    "gotham", "Gotham", "🦇", N_("Near-black with bat-signal yellow. For the dark knight."), dark=True,
     colors={
         "bg": "#0b0c10", "surface": "#15171c", "sidebar": "#0e1014", "header": "#0e1014",
         "fg": "#e9e7df", "dim": "#8e9099", "border": "#23262e", "chip": "#1d2027",
@@ -104,7 +106,7 @@ GOTHAM = _register(ThemeDef(
     }))
 
 MATCHA = _register(ThemeDef(
-    "matcha", "Matcha", "🍵", "Calm sage green on soft white. Clean and minimal.", dark=False,
+    "matcha", "Matcha", "🍵", N_("Calm sage green on soft white. Clean and minimal."), dark=False,
     colors={
         "bg": "#f4f7f1", "surface": "#ffffff", "sidebar": "#ecf1e7", "header": "#f0f4ec",
         "fg": "#22302a", "dim": "#6c7b72", "border": "#dde6d7", "chip": "#e6ede0",
@@ -120,7 +122,7 @@ MATCHA = _register(ThemeDef(
     }))
 
 AURORA = _register(ThemeDef(
-    "aurora", "Aurora", "🌌", "Deep navy with northern-lights teal and violet.", dark=True,
+    "aurora", "Aurora", "🌌", N_("Deep navy with northern-lights teal and violet."), dark=True,
     colors={
         "bg": "#0e1120", "surface": "#161a2d", "sidebar": "#111527", "header": "#111527",
         "fg": "#e5e8f6", "dim": "#8890b5", "border": "#252b47", "chip": "#1e2440",

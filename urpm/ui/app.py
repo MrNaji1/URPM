@@ -12,7 +12,8 @@ gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from urpm import APP_ID, __version__  # noqa: E402
-from urpm.ui.theme import Theme  # noqa: E402
+from urpm.i18n import _  # noqa: E402
+from urpm.ui.theme import Theme, load_prefs  # noqa: E402
 from urpm.ui.window import UrpmWindow  # noqa: E402
 
 ICON_DIR = Path(__file__).resolve().parents[1] / "data" / "icons"
@@ -32,7 +33,7 @@ class UrpmApp(Gtk.Application):
         Gtk.Window.set_default_icon_name("urpm")
         self.theme = Theme(display)
 
-        for name, callback in (("about", self._on_about), ("quit", lambda *_: self.quit())):
+        for name, callback in (("about", self._on_about), ("quit", lambda *_args: self.quit())):
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", callback)
             self.add_action(action)
@@ -47,29 +48,17 @@ class UrpmApp(Gtk.Application):
         window = self.props.active_window or UrpmWindow(self)
         window.present()
 
-    def _on_about(self, *_):
+    def _on_about(self, *_args):
         Gtk.AboutDialog(
             transient_for=self.props.active_window,
             modal=True,
             program_name="URPM",
             logo_icon_name="urpm",
             version=__version__,
-            comments="A cute little window into every package on your Linux machine.",
+            comments=_("A cute little window into every package on your Linux machine."),
             website="https://github.com/MrNaji1/URPM",
             license_type=Gtk.License.MIT_X11,
         ).present()
-
-
-HELP = f"""URPM {__version__} — see every package installed on your computer
-
-usage: urpm [options]
-
-  --version             print the version and exit
-  --check-updates       check for updates once and notify about new ones (no window)
-  --install-desktop     add URPM to your app menu (for pip / pipx installs)
-  --uninstall-desktop   remove it from your app menu again
-  -h, --help            show this help
-"""
 
 
 def desktop_integration(install: bool) -> None:
@@ -82,7 +71,7 @@ def desktop_integration(install: bool) -> None:
     if not install:
         for path in (desktop, icon):
             path.unlink(missing_ok=True)
-        print("URPM removed from your app menu.")
+        print(_("URPM removed from your app menu."))
         return
     source = Path(__file__).resolve().parents[1] / "data"
     desktop.parent.mkdir(parents=True, exist_ok=True)
@@ -94,13 +83,14 @@ def desktop_integration(install: bool) -> None:
     entry = (source / f"{APP_ID}.desktop").read_text()
     desktop.write_text(entry.replace("Exec=urpm", f"Exec={exe}"))
     shutil.copy(source / "icons" / "urpm.svg", icon)
-    print(f"✨ Added URPM to your app menu ({desktop})")
+    print(_("✨ Added URPM to your app menu ({path})").format(path=desktop))
 
 
 def main(argv) -> int:
     args = argv[1:]
     if "-h" in args or "--help" in args:
-        print(HELP, end="")
+        from urpm.cli import help_text
+        print(help_text(), end="")
         return 0
     if "--version" in args:
         print(f"URPM {__version__}")
@@ -110,6 +100,10 @@ def main(argv) -> int:
         return 0
     GLib.set_prgname(APP_ID)
     GLib.set_application_name("URPM")
+    from urpm import i18n
+    code = i18n.setup(load_prefs().get("language", ""))
+    if i18n.is_rtl(code):  # Arabic, Hebrew, Persian…: mirror the whole window
+        Gtk.Widget.set_default_direction(Gtk.TextDirection.RTL)
     return UrpmApp().run(argv)
 
 

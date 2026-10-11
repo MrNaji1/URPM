@@ -9,7 +9,9 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from urpm import schedule  # noqa: E402
+from urpm import i18n, schedule  # noqa: E402
+from urpm.i18n import _  # noqa: E402
+from urpm.ui import theme as theme_prefs  # noqa: E402
 from urpm.ui.theme import THEMES, ThemeDef  # noqa: E402
 from urpm.ui.widgets import label  # noqa: E402
 
@@ -35,7 +37,7 @@ def theme_preview(theme: ThemeDef) -> Gtk.Widget:
 
 class SettingsWindow(Gtk.Window):
     def __init__(self, parent: Gtk.Window, theme, on_theme_changed=None):
-        super().__init__(transient_for=parent, modal=True, title="Settings",
+        super().__init__(transient_for=parent, modal=True, title=_("Settings"),
                          css_classes=["urpm", "dialog-window"], default_width=640,
                          resizable=False)
         self._theme = theme
@@ -44,17 +46,18 @@ class SettingsWindow(Gtk.Window):
 
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
                        css_classes=["dialog-outer"])
-        body.append(label("APPEARANCE", "settings-heading", xalign=0))
-        body.append(label("Theme", "placeholder-title", xalign=0))
-        body.append(label("Pick how URPM looks. Your choice is saved.", "dim", xalign=0))
+        body.append(label(_("APPEARANCE"), "settings-heading", xalign=0))
+        body.append(label(_("Theme"), "placeholder-title", xalign=0))
+        body.append(label(_("Pick how URPM looks. Your choice is saved."), "dim", xalign=0))
 
         grid = Gtk.Grid(column_spacing=12, row_spacing=12, column_homogeneous=True)
         for i, item in enumerate(THEMES.values()):
             grid.attach(self._card(item), i % 3, i // 3, 1, 1)
         body.append(grid)
+        body.append(self._language_section())
         body.append(self._updates_section())
 
-        close = Gtk.Button(label="Done", css_classes=["cute"], halign=Gtk.Align.END,
+        close = Gtk.Button(label=_("Done"), css_classes=["cute"], halign=Gtk.Align.END,
                            margin_top=6)
         close.connect("clicked", lambda _b: self.close())
         body.append(close)
@@ -62,24 +65,57 @@ class SettingsWindow(Gtk.Window):
 
         escape = Gtk.ShortcutController()
         escape.add_shortcut(Gtk.Shortcut.new(Gtk.ShortcutTrigger.parse_string("Escape"),
-                                             Gtk.CallbackAction.new(lambda *_: self.close() or True)))
+                                             Gtk.CallbackAction.new(lambda *_args: self.close() or True)))
         self.add_controller(escape)
         self._sync()
 
-    def _updates_section(self) -> Gtk.Widget:
+    def _language_section(self) -> Gtk.Widget:
         section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin_top=8)
-        section.append(label("UPDATES", "settings-heading", xalign=0))
+        section.append(label(_("LANGUAGE"), "settings-heading", xalign=0))
         card = Gtk.Box(spacing=12, css_classes=["toggle-card"])
         text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
-        text.append(label("Check for updates in the background", "title", xalign=0))
-        text.append(label("Every 6 hours, a quick check that shows a notification when new "
-                          "updates appear. URPM itself doesn't stay open.", "dim", "small",
+        text.append(label(_("Language"), "title", xalign=0))
+        self.language_note = label(_("Used the next time URPM starts."), "dim", "small",
+                                   xalign=0, wrap=True, max_width_chars=50)
+        text.append(self.language_note)
+        card.append(text)
+        self.language_codes = ["", *i18n.available()]
+        system = i18n.NATIVE_NAMES.get(i18n.match(i18n.system_languages(), i18n.available()),
+                                       "English")
+        names = [_("System ({language})").format(language=system)] + [
+            i18n.NATIVE_NAMES.get(code, code) for code in self.language_codes[1:]]
+        saved = theme_prefs.load_prefs().get("language", "")
+        self.language_dropdown = Gtk.DropDown.new_from_strings(names)
+        self.language_dropdown.set_valign(Gtk.Align.CENTER)
+        if saved in self.language_codes:
+            self.language_dropdown.set_selected(self.language_codes.index(saved))
+        self.language_dropdown.update_property([Gtk.AccessibleProperty.LABEL], [_("Language")])
+        self.language_dropdown.connect("notify::selected", self._on_language_changed)
+        card.append(self.language_dropdown)
+        section.append(card)
+        return section
+
+    def _on_language_changed(self, dropdown, _pspec) -> None:
+        code = self.language_codes[dropdown.get_selected()]
+        prefs = theme_prefs.load_prefs()
+        prefs["language"] = code
+        theme_prefs.save_prefs(prefs)
+        self.language_note.set_label(_("✅ Saved. Restart URPM to use it."))
+
+    def _updates_section(self) -> Gtk.Widget:
+        section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin_top=8)
+        section.append(label(_("UPDATES"), "settings-heading", xalign=0))
+        card = Gtk.Box(spacing=12, css_classes=["toggle-card"])
+        text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
+        text.append(label(_("Check for updates in the background"), "title", xalign=0))
+        text.append(label(_("Every 6 hours, a quick check that shows a notification when new "
+                            "updates appear. URPM itself doesn't stay open."), "dim", "small",
                           xalign=0, wrap=True, max_width_chars=60))
         card.append(text)
         self.background_switch = Gtk.Switch(valign=Gtk.Align.CENTER,
                                             active=schedule.is_enabled())
         self.background_switch.update_property([Gtk.AccessibleProperty.LABEL],
-                                               ["Check for updates in the background"])
+                                               [_("Check for updates in the background")])
         self._switch_handler = self.background_switch.connect("notify::active",
                                                               self._on_background_toggled)
         card.append(self.background_switch)
@@ -108,13 +144,13 @@ class SettingsWindow(Gtk.Window):
         if error:
             with switch.handler_block(self._switch_handler):  # put it back, quietly
                 switch.set_active(not enable)
-            message = f"😿 Couldn't change it: {error}"
+            message = _("😿 Couldn't change it: {error}").format(error=error)
         elif how == "systemd":
-            message = "✅ On: checks 15 minutes after you log in, then every 6 hours."
+            message = _("✅ On: checks 15 minutes after you log in, then every 6 hours.")
         elif how == "autostart":
-            message = "✅ On: checks 10 minutes after you log in."
+            message = _("✅ On: checks 10 minutes after you log in.")
         else:
-            message = "Background checks are off."
+            message = _("Background checks are off.")
         self.background_status.set_label(message)
         self.background_status.set_visible(True)
         return GLib.SOURCE_REMOVE
@@ -127,12 +163,13 @@ class SettingsWindow(Gtk.Window):
         check = label("✓", "theme-check")
         title.append(check)
         box.append(title)
-        box.append(label(item.description, "dim", "small", xalign=0, wrap=True,
+        box.append(label(_(item.description), "dim", "small", xalign=0, wrap=True,
                          max_width_chars=18))
         button = Gtk.Button(child=box, css_classes=["theme-card"],
-                            tooltip_text=f"Use the {item.name} theme")
+                            tooltip_text=_("Use the {name} theme").format(name=item.name))
         button.check = check
-        button.update_property([Gtk.AccessibleProperty.LABEL], [f"{item.name} theme"])
+        button.update_property([Gtk.AccessibleProperty.LABEL],
+                               [_("{name} theme").format(name=item.name)])
         button.connect("clicked", lambda _b: self.choose(item.id))
         self._cards[item.id] = button
         return button

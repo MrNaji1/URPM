@@ -87,7 +87,7 @@ class ApkSource(Source):
             return parse_apk_db(fh.read(), world)
 
     def list_packages(self) -> list[Package]:
-        return [pkg for pkg, _ in self._read()]
+        return [pkg for pkg, _extra in self._read()]
 
     def details(self, pkg: Package) -> Details:
         fields = [("License", pkg.extra.get("license", "")),
@@ -99,6 +99,11 @@ class ApkSource(Source):
 
     def launch_argv(self, pkg: Package) -> list[str] | None:
         return desktop_launcher(self.files(pkg))
+
+    def install_actions(self, pkgs: list[Package]) -> list[Action]:
+        names = [p.name for p in pkgs]
+        return [Action(["apk", "add", *names], root=True,
+                       pretty=f"sudo apk add {' '.join(names)}")] if names else []
 
     def remove_action(self, pkg: Package) -> Action:
         return Action(["apk", "del", pkg.name], root=True, pretty=f"sudo apk del {pkg.name}")

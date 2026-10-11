@@ -13,6 +13,8 @@ import shutil
 import subprocess
 from dataclasses import dataclass, field
 
+from urpm.i18n import _
+
 # Source kinds, used to group the sidebar.
 SYSTEM, UNIVERSAL, DEV = "system", "universal", "dev"
 
@@ -58,6 +60,15 @@ class Cleanup:
     items: list[str]            # what will be removed: package names, revisions or folders
     actions: list["Action"]     # the exact commands
     kind: str = "packages"      # "packages", "cache" or "data"
+
+
+@dataclass
+class Permission:
+    """Something a sandboxed app is allowed to do, in plain words."""
+
+    emoji: str
+    text: str
+    risky: bool = False         # reaches beyond the sandbox: all files, all devices…
 
 
 @dataclass
@@ -171,6 +182,30 @@ class Source:
         """What was installed, updated or removed, newest first (urpm.history.Event)."""
         return []
 
+    def install_actions(self, pkgs: list[Package]) -> list[Action]:
+        """Commands that install pkgs (by name), e.g. on a new computer. [] if unsupported.
+
+        Must not depend on what's installed here: the same commands go into the
+        reinstall script for another computer.
+        """
+        return []
+
+    # A command that succeeds when its last argument is a package this computer can install,
+    # e.g. ["apt-cache", "show"]. The reinstall script uses it to skip unknown names.
+    exists_check: list[str] | None = None
+
+    def installable(self, names: list[str]) -> set[str] | None:
+        """Which of names this computer's package sources offer, or None if unknown."""
+        return None
+
+    def permissions(self, pkg: Package) -> list[Permission] | None:
+        """What a sandboxed app may access, or None when the source has no sandbox."""
+        return None
+
+    def data_folder(self, pkg: Package) -> str | None:
+        """Where the app keeps your settings and files, when the source knows."""
+        return None
+
     def hold_action(self, pkg: Package) -> Action | None:
         """Keep pkg at its current version, or None if this source can't."""
         return None
@@ -208,6 +243,13 @@ class Source:
 
     def safe_update_actions(self, pkgs: list[Package]) -> list[Action]:
         actions = self.update_actions(pkgs)
+        for action in actions:
+            check_targets(action, pkgs)
+        return actions
+
+    def safe_install_actions(self, pkgs: list[Package]) -> list[Action]:
+        # Names to install come from a file someone gave you, so check them all.
+        actions = self.install_actions(pkgs)
         for action in actions:
             check_targets(action, pkgs)
         return actions
@@ -311,7 +353,7 @@ def parse_fields(text: str, indented_keys: bool = False) -> dict[str, str]:
             continue
         if ":" not in line:
             continue
-        key, _, value = line.partition(":")
+        key, _sep, value = line.partition(":")
         key = key.strip()
         fields[key] = value.strip()
     return fields
@@ -356,7 +398,7 @@ def apply_updates(packages: list[Package], updates: dict[str, str], key=lambda p
         new = updates.get(key(pkg))
         if not new or (new == pkg.version and not same_version_ok):
             continue
-        pkg.update = new if new != pkg.version else "new build"
+        pkg.update = new if new != pkg.version else _("new build")
         found += 1
     return found
 

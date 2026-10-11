@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import xml.etree.ElementTree as ET
 
+from urpm.i18n import _
+
 from .base import (SYSTEM, Action, Details, Package, Source, apply_updates, desktop_launcher,
                    mtime, run)
 
@@ -49,9 +51,9 @@ def parse_list_upgrades(text: str) -> dict[str, str]:
     """`eopkg list-upgrades`: 'name - summary' lines (no version shown)."""
     updates = {}
     for line in text.splitlines():
-        name, sep, _ = line.partition(" - ")
+        name, sep, _rest = line.partition(" - ")
         if sep and name.strip() and " " not in name.strip():
-            updates[name.strip()] = "newer release"
+            updates[name.strip()] = _("newer release")
     return updates
 
 
@@ -92,6 +94,11 @@ class EopkgSource(Source):
 
     def launch_argv(self, pkg: Package) -> list[str] | None:
         return desktop_launcher(self.files(pkg))
+
+    def install_actions(self, pkgs: list[Package]) -> list[Action]:
+        names = [p.name for p in pkgs]
+        return [Action(["eopkg", "install", "-y", *names], root=True,
+                       pretty=f"sudo eopkg install {' '.join(names)}")] if names else []
 
     def remove_action(self, pkg: Package) -> Action:
         return Action(["eopkg", "remove", "-y", pkg.name], root=True,

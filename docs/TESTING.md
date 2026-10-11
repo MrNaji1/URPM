@@ -15,15 +15,16 @@ on your screen, and a URPM window you already have open isn't touched. CI does t
 
 ## 1. Automated tests
 
-**174 tests, 93% code coverage.** GitHub runs all of them on every push (the window tests
+**204 tests, 93% code coverage.** GitHub runs all of them on every push (the window tests
 under Xvfb), fails if coverage drops below 90%, and lints the code with `ruff`.
 
 | File | Tests | What it covers |
 |---|---:|---|
 | `test_sources.py` | 45 | Parsers and helpers for every package manager (no GTK needed) |
 | `test_e2e_sources.py` | 21 | **Every package manager end to end** on a fake system |
-| `test_ui.py` | 49 | The real window, run on a hidden display |
+| `test_ui.py` | 52 | The real window, run on a hidden display |
 | `test_whole_picture.py` | 16 | Cleanup centre, "needed by", icons and duplicates on the fake system |
+| `test_reach.py` | 27 | The command line, moving to a new computer, Flatpak permissions, translations |
 | `test_up_to_date.py` | 17 | History logs, security updates, holds, background checks and notifications |
 | `test_app.py` | 11 | Command-line options, saved settings, shared helpers |
 | `test_install.py` | 6 | The launcher and `install.sh` |
@@ -170,8 +171,37 @@ Run through this before a release, on a real desktop.
 - [x] `.deb` from the release builds, and its contents run
 - [x] `pipx install --system-site-packages` in a venv, then `--install-desktop`
 - [ ] PKGBUILD on Arch, RPM spec on Fedora/openSUSE *(needs those distros)*
+- [x] Ubuntu PPA source package: `dpkg-buildpackage -b` and `dpkg-source -b` (also in CI)
+- [x] PyPI wheel installed in a fresh venv: `urpm --version`, `urpm list`, Arabic output
+
+### Moving, languages and the command line
+- [x] `urpm list`, `search`, `info`, `updates`, `dupes`, `clean`, `history`, `backup` and
+      `restore` on this machine (all read-only)
+- [x] The window in Arabic: the whole layout mirrors right to left
+- [x] Move dialog and Flatpak permissions with demo data on a hidden display
+- [ ] Restore with `--install` on a fresh computer *(needs a second machine)*
+- [ ] The save and open file dialogs clicked through by hand *(tests call them directly)*
 
 ## 3. Results of the last test rounds
+
+### v2.2.0 (Phase 5: reaching more people)
+
+| Found | Fix |
+|---|---|
+| "Just mine" counted 1,925 APT packages as installed by you, because the installer marks the whole base system as "manual" | Packages the installer put on the system (Ubuntu keeps a record) are left out: **38** on this machine, exactly the ones that were added later |
+| A reinstall list with one APT app from an extra repository (Chrome, Brave, VS Code…) would make `apt-get install` refuse the whole list | URPM asks APT which names it can find first, installs those, and lists the rest with a hint to add their repository |
+| The window grew wider than the screen when a long number (like "807.0 MB") appeared in the stats bar, because every card took the widest card's width | The cards size to their own content |
+| Package sizes were cut off ("260.0 M…") at medium window widths | The Size column is a little wider |
+| Installed files were group-writable when the build folder was | `make install` sets the permissions itself |
+| The `urpm` command from pip / pipx couldn't run `--check-updates`: it always opened the window | One entry point for the window and the command line |
+| A test of the Debian code read this computer's own installer record | The fake system has its own copy |
+| Dates mixed languages ("Sunday، 11 Oct 2026") | Month and day names come from URPM's translation |
+
+On this machine the command line listed 2,442 packages in 0.36 s. It saved a list of 51
+apps, and planning a restore from that list found every APT and Flatpak app in this
+computer's package sources (nothing was installed). Every translation is complete (389
+strings in 5 languages) and checked for broken placeholders by the tests. The PPA source
+package and the PyPI package build in CI on every push.
 
 ### v2.1.0 (Phase 4: staying up to date)
 

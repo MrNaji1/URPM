@@ -1,0 +1,22 @@
+Source: urpm
+Section: admin
+Priority: optional
+Maintainer: MrNaji1 <mohamad.naji2222@gmail.com>
+Build-Depends: make
+Standards-Version: 4.7.0
+Homepage: https://github.com/MrNaji1/URPM
+Vcs-Browser: https://github.com/MrNaji1/URPM
+Vcs-Git: https://github.com/MrNaji1/URPM.git
+Rules-Requires-Root: no
+
+Package: urpm
+Architecture: all
+Depends: python3 (>= 3.10), python3-gi, gir1.2-gtk-4.0
+Recommends: pkexec | policykit-1
+Suggests: flatpak, snapd
+Description: cute viewer for every package installed on your computer
+ URPM lists everything installed through APT, Flatpak, Snap, AppImage,
+ Homebrew, Nix, pip, pipx, npm and Cargo in one searchable window. It can
+ check for updates, open apps, and safely remove packages after showing
+ exactly what else would be removed. It also finds space to free, apps
+ installed more than once, and helps move your apps to a new computer.

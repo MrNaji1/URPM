@@ -9,6 +9,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, Pango  # noqa: E402
 
+from urpm.i18n import _, ngettext  # noqa: E402
 from urpm.sources import KIND_LABELS, Source  # noqa: E402
 from urpm.ui.widgets import clear, label  # noqa: E402
 
@@ -41,13 +42,13 @@ class Sidebar(Gtk.Box):
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
                        css_classes=["toggle-card"], margin_top=8)
         row = Gtk.Box(spacing=10)
-        row.append(label("Just mine 💖", "title", xalign=0, hexpand=True))
+        row.append(label(_("Just mine 💖"), "title", xalign=0, hexpand=True))
         self.explicit_switch = Gtk.Switch(valign=Gtk.Align.CENTER)
         self.explicit_switch.connect("notify::active",
                                      lambda switch, _p: on_explicit_toggled(switch.get_active()))
         row.append(self.explicit_switch)
         card.append(row)
-        card.append(label("Hide packages that only came along as dependencies",
+        card.append(label(_("Hide packages that only came along as dependencies"),
                           "dim", "small", xalign=0, wrap=True, max_width_chars=24))
         self.append(card)
 
@@ -69,19 +70,20 @@ class Sidebar(Gtk.Box):
         for item in shown:
             per_source[item.source.id] = per_source.get(item.source.id, 0) + 1
 
-        self._heading("LIBRARY")
-        rows = [self._row(ALL, "🌈", "Everything", len(shown)),
-                self._row(UPDATES, "✨", "Updates", sum(1 for i in shown if i.pkg.update)),
-                self._row(RECENT, "🕒", f"Last {RECENT_DAYS} days",
+        self._heading(_("LIBRARY"))
+        rows = [self._row(ALL, "🌈", _("Everything"), len(shown)),
+                self._row(UPDATES, "✨", _("Updates"), sum(1 for i in shown if i.pkg.update)),
+                self._row(RECENT, "🕒", ngettext("Last {n} day", "Last {n} days",
+                                                 RECENT_DAYS).format(n=RECENT_DAYS),
                           sum(1 for i in shown if (i.pkg.installed or 0) >= cutoff))]
-        self._heading("TOOLS")
-        rows.append(self._row(CLEANUP, "🧹", "Cleanup", tools.get(CLEANUP, "…")))
-        rows.append(self._row(DUPLICATES, "👯", "Duplicates", tools.get(DUPLICATES, "0")))
-        rows.append(self._row(HISTORY, "🕘", "History", tools.get(HISTORY, "…")))
+        self._heading(_("TOOLS"))
+        rows.append(self._row(CLEANUP, "🧹", _("Cleanup"), tools.get(CLEANUP, "…")))
+        rows.append(self._row(DUPLICATES, "👯", _("Duplicates"), tools.get(DUPLICATES, "0")))
+        rows.append(self._row(HISTORY, "🕘", _("History"), tools.get(HISTORY, "…")))
         for kind, heading in KIND_LABELS.items():
             group = [s for s in sources if s.kind == kind]
             if group:
-                self._heading(heading)
+                self._heading(_(heading))
             for src in group:
                 rows.append(self._row(src.id, src.emoji, src.label, per_source.get(src.id, 0),
                                       error=errors.get(src.id)))
@@ -112,7 +114,7 @@ class Sidebar(Gtk.Box):
         box.append(label(emoji, "source-emoji"))
         box.append(label(name, xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END))
         if error:
-            row.set_tooltip_text(f"Couldn't read {name}: {error}")
+            row.set_tooltip_text(_("Couldn't read {name}: {error}").format(name=name, error=error))
             box.append(label("⚠️", "source-error"))
         row.count = label(count if isinstance(count, str) else f"{count:,}", "count")
         box.append(row.count)

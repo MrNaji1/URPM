@@ -1,0 +1,23 @@
+#!/usr/bin/make -f
+# Plain rules, no debhelper needed: URPM is pure Python and installs with `make install`.
+PKG := debian/urpm
+
+build build-arch build-indep:
+
+clean:
+	rm -rf $(PKG) debian/files debian/*.substvars
+
+binary-arch:
+
+binary-indep:
+	rm -rf $(PKG)
+	$(MAKE) install DESTDIR=$(CURDIR)/$(PKG) PREFIX=/usr
+	install -d $(PKG)/DEBIAN $(PKG)/usr/share/doc/urpm
+	install -m 644 debian/copyright $(PKG)/usr/share/doc/urpm/copyright
+	gzip -9nc debian/changelog > $(PKG)/usr/share/doc/urpm/changelog.gz
+	dpkg-gencontrol -purpm -P$(PKG)
+	dpkg-deb --root-owner-group --build $(PKG) ..
+
+binary: binary-indep binary-arch
+
+.PHONY: build build-arch build-indep clean binary binary-arch binary-indep

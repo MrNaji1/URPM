@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import re
 
+from urpm.i18n import _
 from urpm.sources.base import (Action, Cleanup, Package, Source, UnsafeCommand, dir_size,
                                parse_size, run, which)
 
@@ -26,10 +27,11 @@ def pip_cache() -> Cleanup | None:
     size = dir_size(folder) if os.path.isdir(folder) else 0
     if not size:
         return None
-    return Cleanup("pip-cache", "pip download cache",
-                   "Python packages pip downloaded before. They'll be downloaded again if "
-                   "you install them later.", "pip", size, [folder],
-                   [Action(["python3", "-m", "pip", "cache", "purge"])], kind="cache")
+    return Cleanup(
+        "pip-cache", _("pip download cache"),
+        _("Python packages pip downloaded before. They'll be downloaded again if "
+          "you install them later."), "pip", size, [folder],
+        [Action(["python3", "-m", "pip", "cache", "purge"])], kind="cache")
 
 
 def npm_cache() -> Cleanup | None:
@@ -39,10 +41,11 @@ def npm_cache() -> Cleanup | None:
     size = dir_size(folder) if os.path.isdir(folder) else 0
     if not size:
         return None
-    return Cleanup("npm-cache", "npm download cache",
-                   "Copies of every package npm has downloaded. npm fetches them again when "
-                   "a project needs them.", "npm", size, [folder],
-                   [Action(["npm", "cache", "clean", "--force"])], kind="cache")
+    return Cleanup(
+        "npm-cache", _("npm download cache"),
+        _("Copies of every package npm has downloaded. npm fetches them again when "
+          "a project needs them."), "npm", size, [folder],
+        [Action(["npm", "cache", "clean", "--force"])], kind="cache")
 
 
 def cargo_cache() -> Cleanup | None:
@@ -52,10 +55,11 @@ def cargo_cache() -> Cleanup | None:
     size = sum(dir_size(d) for d in folders)
     if not size:
         return None
-    return Cleanup("cargo-cache", "Cargo download cache",
-                   "Downloaded crates and their unpacked sources. Cargo downloads them again "
-                   "when a project needs them.", "Cargo", size, folders,
-                   [Action(["rm", "-rf", "--", *folders])], kind="cache")
+    return Cleanup(
+        "cargo-cache", _("Cargo download cache"),
+        _("Downloaded crates and their unpacked sources. Cargo downloads them again "
+          "when a project needs them."), "Cargo", size, folders,
+        [Action(["rm", "-rf", "--", *folders])], kind="cache")
 
 
 def parse_brew_cleanup_dry_run(text: str) -> int:
@@ -70,10 +74,11 @@ def brew_cache() -> Cleanup | None:
     size = parse_brew_cleanup_dry_run(run("brew", "cleanup", "-n", timeout=120))
     if not size:
         return None
-    return Cleanup("brew-cleanup", "Old Homebrew versions and downloads",
-                   "Older versions of upgraded formulae and cached downloads.", "Homebrew",
-                   size, [run("brew", "--cache").strip()], [Action(["brew", "cleanup"])],
-                   kind="cache")
+    return Cleanup(
+        "brew-cleanup", _("Old Homebrew versions and downloads"),
+        _("Older versions of upgraded formulae and cached downloads."), "Homebrew",
+        size, [run("brew", "--cache").strip()], [Action(["brew", "cleanup"])],
+        kind="cache")
 
 
 CACHES = (pip_cache, npm_cache, cargo_cache, brew_cache)

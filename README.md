@@ -12,7 +12,9 @@ APT · DNF · pacman · Flatpak · Snap · AppImage · Homebrew · Nix · pip ·
 [![Latest release](https://img.shields.io/github/v/release/MrNaji1/URPM?color=e86aa0)](https://github.com/MrNaji1/URPM/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-e86aa0.svg)](LICENSE)
 
-<img src="docs/screenshots/main-light.png" alt="URPM showing packages from APT, Flatpak, Snap, AppImage, npm, Cargo and pipx in one list" width="900">
+<img src="docs/screenshots/demo.gif" alt="A tour of URPM: the package list, Flatpak permissions, updates with security fixes in red, the install history, the Cleanup centre, the duplicate finder, moving to a new computer, and the Gotham theme" width="900">
+
+<sub>Also in العربية · Deutsch · Español · Français · Português</sub>
 
 </div>
 
@@ -36,7 +38,10 @@ can show you the whole picture.
 - 🕒 *"What changed recently?"* That's handy when something broke after an install.
 - 🧹 *"How do I get rid of this?"* Remove it right there, after URPM shows you exactly
   what else would be removed.
-- 📋 *"What do I need to set up my new laptop?"* Export your list to CSV, JSON or text.
+- 🚚 *"How do I get all my apps onto my new laptop?"* Save your apps, then open the list
+  with URPM on the new computer and it installs whatever is missing.
+- 🔒 *"What can this Flatpak app see?"* Every Flatpak app shows its permissions in plain
+  words, with the risky ones first.
 
 ## Features
 
@@ -50,6 +55,10 @@ can show you the whole picture.
 | 📌 **Keep this version** | Hold a package so it isn't updated (APT, DNF, Flatpak, Homebrew). Held packages are skipped by *Update all*. |
 | 🕘 **History** | A timeline of everything installed, updated or removed, grouped by day, read from your package managers' own logs. |
 | 🔔 **Background update checks** | Optional. Every 6 hours URPM checks quietly and sends a notification when new updates appear, without keeping a window open. |
+| 🚚 **Move to a new computer** | Save the apps you installed, then install them all on another computer, even one running a different distro. Comes with a script for computers without URPM. |
+| 🔒 **Flatpak permissions** | What each Flatpak app may access, in plain words, and how much data it keeps in `~/.var/app`. |
+| ⌨️ **Command line too** | `urpm list`, `urpm updates`, `urpm dupes`, `urpm clean`, `urpm backup`… Works over SSH, no window needed. |
+| 🌍 **Six languages** | English, العربية (right to left), Deutsch, Español, Français and Português do Brasil. |
 | 🔄 **Update all** | One click (and one password prompt per package manager) updates everything in the Updates view. |
 | 🚀 **Open apps** | Launch Flatpaks, Snaps, AppImages and desktop apps. Double-click a row or press Enter. |
 | 🗑️ **Safe removal** | Previews everything that would be removed *before* you confirm, then asks for your password through polkit. |
@@ -119,6 +128,69 @@ systems with systemd, URPM adds a small user timer (no root needed) that runs
 `urpm --check-updates` 15 minutes after login and then every 6 hours. Without systemd it
 checks once, 10 minutes after login. You're only notified about updates you haven't
 already been told about. Turning the switch off removes the timer again.
+
+## Moving to a new computer
+
+**Menu → Move to a new computer…** saves the apps you installed into a small file, plus a
+shell script. Copy both to your new computer:
+
+- **With URPM:** open the list from the same menu. URPM shows what's missing, grouped by
+  package manager, and installs the ones you tick. Apps that came from an extra repository
+  (like Google Chrome or Brave) are listed separately, so one unknown name can't stop the
+  rest.
+- **Without URPM:** run `sh my-apps.sh`. Each package manager's part only runs if that
+  package manager is installed, and nothing is ever removed.
+
+Moving from Ubuntu to Fedora? Your Flatpak, Snap, Homebrew, pipx, npm and Cargo apps come
+along. APT packages are listed for you to find in the new distro.
+
+<div align="center">
+<img src="docs/screenshots/move.png" alt="The Move to a new computer dialog: save my apps, or install apps from another computer" width="480">
+</div>
+
+## Flatpak permissions
+
+Click a Flatpak app to see what it's allowed to do, in plain words. Access that reaches
+outside the sandbox, like your whole home folder, every device, or running commands on
+the host, is shown first and in colour. You also see how much data the app keeps in
+`~/.var/app`, with a button to open that folder. Change permissions with
+[Flatseal](https://flathub.org/apps/com.github.tchx84.Flatseal) or `flatpak override`.
+
+<div align="center">
+<img src="docs/screenshots/permissions.png" alt="Telegram's permissions: your whole home folder (highlighted), internet access, sound and microphone, its own windows, your Downloads folder, and 146 MB of data" width="320">
+</div>
+
+## On the command line
+
+Everything URPM knows is also available in a terminal, without opening a window:
+
+```bash
+urpm list --mine              # what you installed, from every package manager
+urpm list --updates --json    # machine-readable, for scripts
+urpm search firefox
+urpm info org.telegram.desktop   # details, what needs it, Flatpak permissions
+urpm updates                  # 🛡 marks security fixes
+urpm dupes                    # apps installed more than once
+urpm clean                    # what can be cleaned up (shows commands, removes nothing)
+urpm history --days 7
+urpm backup my-apps.json      # also writes my-apps.sh
+urpm restore my-apps.json     # what's missing here; add --install to install it
+```
+
+Run `urpm --help` for everything. The command line reads only, except `restore --install`.
+
+## Languages
+
+URPM speaks English, العربية, Deutsch, Español, Français and Português do Brasil. It
+follows your system's language, or pick one in **Settings → Language**. Arabic turns the
+whole window right to left.
+
+<div align="center">
+<img src="docs/screenshots/arabic.png" alt="URPM in Arabic, laid out right to left, showing the Updates view" width="760">
+</div>
+
+Want URPM in your language? See [docs/TRANSLATING.md](docs/TRANSLATING.md). It takes an
+afternoon and no programming.
 
 ## Themes
 
@@ -375,14 +447,15 @@ python3 -m urpm
 - **🧹 Cleanup** and **👯 Duplicates** in the sidebar's *Tools* section find space to free.
 - **🕘 History** shows everything installed, updated or removed, by day.
 - **📌 Keep this version** stops a package from being updated until you allow it again.
+- **Menu → Move to a new computer…** saves your apps, or installs the ones from a saved list.
 - **🚀 Open** launches it (when it's an app).
 - **✨ Update** appears when a newer version is available. In the *Updates* view,
   **Update all** updates everything at once.
 - **🗑️ Remove** first shows a preview of everything that would be removed. Nothing happens
   until you confirm and enter your password.
 - **Copy uninstall command** if you'd rather run it yourself in a terminal.
-- **🎨 Settings** (the brush button, or `Ctrl+,`) lets you pick a theme and turn on
-  background update checks.
+- **🎨 Settings** (the brush button, or `Ctrl+,`) lets you pick a theme and a language, and
+  turn on background update checks.
 - **Menu → Export list…** saves the current view. Pick `.csv`, `.json` or `.txt` as the
   file extension.
 
@@ -427,8 +500,10 @@ python3 -m urpm
 Sandboxed apps can't see the host's package databases, which is the whole point of URPM.
 
 **Why does "Just mine" show so many APT packages?**
-It shows what APT calls *manually installed*. Distro installers mark the whole base
-system that way, so on Ubuntu/Mint you'll see a few thousand.
+It shows what APT calls *manually installed*. Distro installers mark the whole base system
+that way. On Ubuntu, Mint, Pop!_OS and other distros whose installer keeps a record
+(`/var/log/installer/initial-status.gz`), URPM leaves those out, so you see only what you
+added. Elsewhere you may still see a few thousand.
 
 **A package manager is missing from the sidebar.**
 URPM only shows package managers that are installed *and* have at least one package. If
@@ -451,14 +526,15 @@ urpm/
     flatpak.py snap.py appimage.py nix.py brew.py
     pip.py pipx.py npm.py cargo.py
   ui/
-    app.py      Gtk.Application, shortcuts, command-line flags
+    app.py      Gtk.Application, shortcuts, desktop-entry flags
     window.py   the main window: wires the parts together, loading and actions
     table.py    the package list: model, fast sorting, search, columns
     sidebar.py  views, tools, package managers and the "Just mine" switch
     cleanup_page.py, duplicates_page.py, history_page.py   the tool pages
+    move.py     the "Move to a new computer" dialogs
     details.py  the details panel on the right
     dialogs.py  remove confirmation, command output, export
-    settings.py the Settings window and theme picker
+    settings.py the Settings window: theme, language, background checks
     theme.py    themes (colour palettes) and saved preferences
     widgets.py  small shared helpers
     style.css   all the cuteness
@@ -469,8 +545,13 @@ urpm/
   notify.py     `urpm --check-updates`: the quiet background check and its notification
   schedule.py   turning the background check on and off (systemd timer or autostart)
   export.py     CSV / JSON / text export
+  migrate.py    moving to a new computer: the saved app list and the reinstall script
+  cli.py        `urpm list`, `urpm dupes`… and the entry point that opens the window
+  i18n.py       translations: picks the language and reads urpm/locale/*.po
+  locale/       one .po file per language
   data/         icon, .desktop entry, AppStream metainfo
-packaging/      .deb builder, Arch PKGBUILD, RPM spec
+po/             urpm.pot (every translatable string) and update.py, which keeps it current
+packaging/      .deb builder, Ubuntu PPA source package, Arch PKGBUILDs, RPM spec
 tests/          unit, end-to-end, installer and UI tests
   fakes/        a fake Linux system with fake pacman, rpm, apk… for end-to-end tests
 ```
@@ -483,10 +564,14 @@ Then register it in `urpm/sources/__init__.py`. Keep text parsing in a standalon
 output to `tests/fakes/responses.py` and an end-to-end test to
 `tests/test_e2e_sources.py`, so it's tested on every machine.
 
+**Adding or fixing a translation:** see [docs/TRANSLATING.md](docs/TRANSLATING.md). In
+code, wrap text in `_("…")` (or `ngettext("…", "…", n)` for counts) and put values in with
+`.format()`, never with an f-string. Then run `make pot`.
+
 **Running tests:**
 
 ```bash
-make test       # everything that doesn't open a window (~2 s)
+make test       # everything that doesn't open a window (~8 s)
 make test-ui    # also the UI tests, on a hidden display (needs xvfb)
 ruff check urpm tests   # lint
 ```
